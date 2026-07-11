@@ -26,6 +26,27 @@ from app.registry import ModelSpec, get_model
 
 _clients: dict[str, OpenAI] = {}
 
+# Global throttle on concurrent provider calls. The build now fans out across subtopics AND
+# interactions AND source extractions, so without a single global cap the nested pools could
+# stampede the provider and trigger rate-limit backoff (which is SLOWER, not faster). This
+# bounds total in-flight model/tool calls regardless of how many worker threads exist; it is
+# purely a concurrency limit and changes no agent's inputs or ordering (alignment-neutral).
+import threading as _threading
+
+_sema: _threading.BoundedSemaphore | None = None
+_sema_lock = _threading.Lock()
+
+
+def _call_gate() -> _threading.BoundedSemaphore:
+    global _sema
+    if _sema is None:
+        with _sema_lock:
+            if _sema is None:
+                from app.config import get_settings
+                n = max(1, int(get_settings().section("build").get("max_concurrent_llm_calls", 8)))
+                _sema = _threading.BoundedSemaphore(n)
+    return _sema
+
 
 class LLMError(RuntimeError):
     pass
@@ -78,7 +99,8 @@ def _do_call(spec: ModelSpec, messages: list[dict], max_tokens: int, temperature
         )
 
     start = time.perf_counter()
-    resp = _invoke()
+    with _call_gate():                    # global concurrency cap (alignment-neutral throttle)
+        resp = _invoke()
     latency_ms = int((time.perf_counter() - start) * 1000)
     text = (resp.choices[0].message.content or "").strip()
     usage = resp.usage
@@ -189,7 +211,7 @@ def web_search(query: str, max_results: int = 5, *, phase: str = "scouting",
         "max_tokens": 40,
     }
     start = time.perf_counter()
-    with trace_span("tool:web_search", model=spec.model, query=query[:80]):
+    with trace_span("tool:web_search", model=spec.model, query=query[:80]), _call_gate():
         resp = httpx.post(url, headers={"Authorization": f"Bearer {key}",
                                         "HTTP-Referer": "http://localhost:5173",
                                         "X-Title": "Seekhai_test"}, json=body, timeout=60.0)

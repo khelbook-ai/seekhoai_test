@@ -54,21 +54,38 @@ def _gather_sources(plan: dict, currency_mode: str, since: str | None,
                     candidates.append({"url": u, "title": r.get("title"), "type": "paper",
                                        "published": r.get("published")})
 
-    extracted: list[dict] = []
-    for cand in candidates[: _MAX_SOURCES_PER_ROUND * 2]:
-        if len([e for e in extracted if e.get("text_chunks")]) >= _MAX_SOURCES_PER_ROUND:
-            break
+    # Extract candidate sources CONCURRENTLY (pure I/O — extractors don't decide relevance,
+    # spec 05 §2), then deterministically keep the first N successful in candidate order —
+    # exactly the same selection the serial early-break would make, just faster.
+    from concurrent.futures import ThreadPoolExecutor
+
+    pool_cands = candidates[: _MAX_SOURCES_PER_ROUND * 2]
+
+    def _extract(cand: dict) -> tuple[dict, dict]:
         events.emit(course_id, "scouting", "scrape",
                     f"MCP extract [{cand.get('type')}] {cand['url'][:70]}")
-        out = router.extract_url(cand["url"], source_type=cand.get("type"))
+        return cand, router.extract_url(cand["url"], source_type=cand.get("type"))
+
+    outs: list[tuple[dict, dict]] = []
+    if pool_cands:
+        with ThreadPoolExecutor(max_workers=min(len(pool_cands), 4), thread_name_prefix="extract") as pool:
+            futs = {pool.submit(_extract, c): i for i, c in enumerate(pool_cands)}
+            tmp: dict[int, tuple[dict, dict]] = {}
+            for fut, i in futs.items():
+                tmp[i] = fut.result()
+        outs = [tmp[i] for i in sorted(tmp)]  # restore candidate order
+
+    extracted: list[dict] = []
+    for cand, out in outs:
+        if len(extracted) >= _MAX_SOURCES_PER_ROUND:
+            break
         if out.get("error") or not out.get("text_chunks"):
             events.emit(course_id, "scouting", "scrape",
                         f"  ↳ skipped ({out.get('message','no usable text')[:50]})")
             continue
         events.emit(course_id, "scouting", "extract",
                     f"  ↳ extracted {len(out.get('text_chunks', []))} text chunks")
-        blob_ref = out.get("_blob_ref")
-        figs = router.figures_for(cand["url"], blob_ref)
+        figs = router.figures_for(cand["url"], out.get("_blob_ref"))  # figures only for kept sources
         extracted.append({
             "url": cand["url"], "title": cand.get("title") or (out.get("meta") or {}).get("title"),
             "type": cand["type"], "published": cand.get("published") or (out.get("meta") or {}).get("published"),

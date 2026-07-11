@@ -31,7 +31,13 @@ clarification:                      # spec 01 §3
   ambiguity_floor: 0.2
 
 build:                              # spec 02 §5 — course build orchestration
-  max_concurrent_subtopics: 4       # subtopics are independent; build up to N in parallel
+  # Independent units are built in parallel; the sequential agent chains
+  # (scout→audit→generate→check→verify) are ALWAYS preserved, so parallelism never changes
+  # what any agent sees. `max_concurrent_llm_calls` is a single global throttle so nested
+  # fan-out can't trigger provider rate-limit backoff.
+  max_concurrent_subtopics: 4       # independent subtopics built in parallel
+  max_concurrent_interactions: 4    # independent interactions within a subtopic
+  max_concurrent_llm_calls: 8       # GLOBAL cap on in-flight model/tool calls (throttle only)
 
 checkers:                           # spec 04 §8
   max_regen_retries: 2

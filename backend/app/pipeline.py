@@ -153,47 +153,71 @@ def _scout_and_audit(st: dict, currency_mode: str, domain_grounding: dict, since
     return package, audit_res
 
 
+def _one_interaction(spec: dict, st: dict, package: dict, intent: dict,
+                     domain_grounding: dict, course_id: str, max_retries: int) -> dict:
+    """Generate ONE interaction and run its full generate→domain-check→verify chain (with
+    regen). Self-contained and independent of sibling interactions: it works on a private
+    copy of the subtopic context, so a regen 'fix' hint here can never leak into another
+    interaction — parallel siblings stay aligned because each sees identical inputs."""
+    st = dict(st)                        # private copy — no cross-interaction bleed
+    item: dict = {}
+    checks: list[tuple] = []
+    flagged = False
+    for attempt in range(max_retries + 1):
+        label = f"{spec['kind'].upper()}{' (definition)' if spec.get('definition') else ''} DL{spec['dl']}"
+        events.emit(course_id, "generation", "generate",
+                    f"generating {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
+        if spec["kind"] == "mcq":
+            item = gen.generate_mcq(st, package, intent, spec["dl"],
+                                    definition=spec["definition"], course_id=course_id)
+        else:
+            item = gen.generate_qa(st, package, intent, spec["dl"], course_id=course_id)
+
+        events.emit(course_id, "checking", "check", "Domain Checker (GLM) reviewing framing…")
+        dom = semantic.domain_check(item, st, domain_grounding, course_id)
+        if not dom.get("on_domain", True) and attempt < max_retries:
+            events.emit(course_id, "checking", "check", f"  ↳ off-domain → regen ({dom.get('reason','')[:40]})")
+            st = {**st, "description": st["description"] + " | fix: " + (dom.get("regen_hint") or "")}
+            continue
+        events.emit(course_id, "verification", "verify", "Verification (Gemini, independent) checking accuracy…")
+        ver = semantic.verify(item, st, package, course_id)
+        checks = [("domain", dom), ("verification", ver)]
+        if ver.get("verdict") == "fail" and attempt < max_retries:
+            events.emit(course_id, "verification", "verify", f"  ↳ failed → regen ({'; '.join(ver.get('issues', [])[:1])[:40]})")
+            st = {**st, "description": st["description"] + " | fix: " + (ver.get("suggested_fix") or "")}
+            continue
+        flagged = (not dom.get("on_domain", True)) or (ver.get("verdict") == "fail")
+        events.emit(course_id, "verification", "verify",
+                    f"  ↳ {label}: domain={'ok' if dom.get('on_domain', True) else 'FAIL'} "
+                    f"verify={ver.get('verdict', 'pass')}" + (" · FLAGGED for review" if flagged else ""))
+        break
+    item["_checks"] = checks
+    item["_flagged"] = flagged
+    return item
+
+
 def _generate_and_check(st: dict, package: dict, intent: dict, domain_grounding: dict,
                         course_id: str) -> list[dict]:
     max_retries = int(get_settings().section("checkers").get("max_regen_retries", 2))
+    n_par = max(1, int(get_settings().section("build").get("max_concurrent_interactions", 4)))
     specs = gen.plan_interactions(package)
-    results: list[dict] = []
 
-    for idx, spec in enumerate(specs):
-        item = None
-        checks: list[tuple] = []
-        flagged = False
-        for attempt in range(max_retries + 1):
-            label = f"{spec['kind'].upper()}{' (definition)' if spec.get('definition') else ''} DL{spec['dl']}"
-            events.emit(course_id, "generation", "generate",
-                        f"generating {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
-            if spec["kind"] == "mcq":
-                item = gen.generate_mcq(st, package, intent, spec["dl"],
-                                        definition=spec["definition"], course_id=course_id)
-            else:
-                item = gen.generate_qa(st, package, intent, spec["dl"], course_id=course_id)
+    # Interactions within a subtopic are independent (each has its own generate→check→verify
+    # chain over the SAME read-only package), so build them concurrently. Order is preserved
+    # so the definition MCQ stays first (ordinal 0). The global LLM gate caps total load.
+    results: list[dict] = [None] * len(specs)  # type: ignore[list-item]
+    if n_par == 1 or len(specs) <= 1:
+        for i, spec in enumerate(specs):
+            results[i] = _one_interaction(spec, st, package, intent, domain_grounding, course_id, max_retries)
+    else:
+        from concurrent.futures import ThreadPoolExecutor
 
-            events.emit(course_id, "checking", "check", "Domain Checker (GLM) reviewing framing…")
-            dom = semantic.domain_check(item, st, domain_grounding, course_id)
-            if not dom.get("on_domain", True) and attempt < max_retries:
-                events.emit(course_id, "checking", "check", f"  ↳ off-domain → regen ({dom.get('reason','')[:40]})")
-                st = {**st, "description": st["description"] + " | fix: " + (dom.get("regen_hint") or "")}
-                continue
-            events.emit(course_id, "verification", "verify", "Verification (Gemini, independent) checking accuracy…")
-            ver = semantic.verify(item, st, package, course_id)
-            checks = [("domain", dom), ("verification", ver)]
-            if ver.get("verdict") == "fail" and attempt < max_retries:
-                events.emit(course_id, "verification", "verify", f"  ↳ failed → regen ({'; '.join(ver.get('issues', [])[:1])[:40]})")
-                st = {**st, "description": st["description"] + " | fix: " + (ver.get("suggested_fix") or "")}
-                continue
-            flagged = (not dom.get("on_domain", True)) or (ver.get("verdict") == "fail")
-            events.emit(course_id, "verification", "verify",
-                        f"  ↳ {label}: domain={'ok' if dom.get('on_domain', True) else 'FAIL'} "
-                        f"verify={ver.get('verdict', 'pass')}" + (" · FLAGGED for review" if flagged else ""))
-            break
-        item["_checks"] = checks
-        item["_flagged"] = flagged
-        results.append(item)
+        with ThreadPoolExecutor(max_workers=min(n_par, len(specs)),
+                                thread_name_prefix="interaction") as pool:
+            futs = {pool.submit(_one_interaction, spec, st, package, intent, domain_grounding,
+                                course_id, max_retries): i for i, spec in enumerate(specs)}
+            for fut, i in futs.items():
+                results[i] = fut.result()
 
     # Option Checker across the subtopic's MCQs (deterministic: variety + balance)
     mcqs = [it for it in results if it["_type"] == "mcq"]

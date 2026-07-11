@@ -184,17 +184,35 @@ agent logic.
 
 - **Idempotent regeneration.** Regenerating one interaction must not mutate siblings. Content
   is addressed by stable `interaction_id`.
-- **Bounded-concurrency subtopic build.** Subtopics are independent (each scouts, generates,
-  checks, and persists on its own), so the build runs them **in parallel** through a bounded
-  worker pool — `build.max_concurrent_subtopics` (default 4, capped under the DB connection
-  pool). Because the build is almost entirely I/O-bound on sequential LLM/scrape calls, this is
-  the dominant lever on build time: measured on a 9-subtopic RL course, wall-clock drops from
-  ~71 min (serial) to ~25 min at 4-way and ~10 min at full fan-out (floor = the slowest single
-  subtopic). Workers must stay within provider rate limits (calls already retry with backoff on
-  429s) and the DB pool size. A **single subtopic failing does not abort the build** — it's
-  logged as a warning and the rest complete (idempotent resume can re-run it); the build only
-  fails if *every* subtopic fails. Build events key by `course_id`, so concurrent logs simply
-  interleave in the live trace.
+- **Bounded-concurrency build — parallel where independent, sequential where dependent.**
+  The build parallelises **only genuinely independent units** and **never** crosses a
+  dependency boundary, so no agent ever sees partial or sibling state and content cannot drift
+  out of alignment. Three levels of independent fan-out:
+  - **Subtopics** (`build.max_concurrent_subtopics`, default 4) — each scouts, generates,
+    checks, and persists on its own package.
+  - **Interactions within a subtopic** (`build.max_concurrent_interactions`, default 4) — each
+    interaction runs its **own** `generate → domain-check → verify` chain over the **same
+    read-only Content Package**. Each worker gets a **private copy** of the subtopic context so
+    a regen "fix" hint for one item can never leak into another. Output order is preserved (the
+    definition MCQ stays first); the Option Checker still runs once over the whole set.
+  - **Source extraction within scouting** — pure I/O extractors run concurrently, then the
+    first N successful sources are kept in candidate order (identical selection to serial).
+
+  **Invariant:** the ordered agent chains — `scout → audit → generate → check → verify` per
+  subtopic, and `generate → domain-check → verify` per interaction — are **always sequential**.
+  Only independent siblings run at once, and every parallel unit sees **identical inputs** to
+  the serial run, so parallelism is behaviour-preserving (alignment-neutral), not just faster.
+
+  A single **global throttle** (`build.max_concurrent_llm_calls`, default 8) caps total
+  in-flight model/tool calls across *all* pools, so nested fan-out can't trigger provider
+  rate-limit backoff (which would be slower). Calls also retry with backoff on 429s.
+
+  This is the dominant lever on build time: measured on a 9-subtopic RL course, wall-clock
+  drops from ~71 min (serial) toward ~25 min with subtopic-level parallelism alone, and further
+  once interactions within the slowest subtopic also overlap (the old ~10-min single-subtopic
+  floor). A **single subtopic failing does not abort the build** — it's logged and the rest
+  complete (idempotent resume can re-run it); the build only fails if *every* subtopic fails.
+  Build events key by `course_id`, so concurrent logs simply interleave in the live trace.
 - **Everything is captured.** Every agent call records tokens in/out, latency, model, and
   cost to Postgres (`generation_metrics`) in addition to observability traces — the spec
   explicitly requires capturing *generation speed*.
