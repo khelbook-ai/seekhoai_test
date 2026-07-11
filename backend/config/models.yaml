@@ -33,6 +33,7 @@ agents:
   qa_generator:           { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   hint_generator:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   diagram_agent:          { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  walkthrough_generator:  { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   domain_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   qa_grader:              { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   # live web search — OpenRouter's built-in web plugin (Exa-backed), high quality (05 §2)

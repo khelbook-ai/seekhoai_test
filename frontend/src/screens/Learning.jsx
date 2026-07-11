@@ -3,9 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import MarkdownView from "../components/MarkdownView.jsx";
 import FeedbackWidget from "../components/FeedbackWidget.jsx";
+import CodeWalkthrough from "../components/CodeWalkthrough.jsx";
 
 const DL_LABEL = { 1: "Easy", 2: "Medium", 3: "Hard" };
-const TICK = { correct: "✓", wrong: "✗", unanswered: "○" };
+const TICK = { correct: "✓", wrong: "✗", unanswered: "○", reviewed: "▣" };
 
 // Learning screen (spec 07 §2). Session is RESUMED (progress + score survive navigation).
 // A sub-tab rail lists every question per subtopic with a green/red/neutral tick; completed
@@ -79,6 +80,11 @@ export default function Learning() {
     if (result?.next) { setIt(result.next); setReview(null); }
     else { setIt(null); refreshMap(); }
   }
+  async function walkthroughDone() {
+    const r = await api.submitAnswer(sid, { interaction_id: it.id });  // mark reviewed (non-scored)
+    setScore(r.running_score); refreshMap(); resetLocal();
+    if (r.next) setIt(r.next); else { setIt(null); refreshMap(); }
+  }
 
   if (err) return <div className="wrap"><p className="err">{err}</p>
     <button className="btn secondary" onClick={() => nav(`/course/${courseId}`)}>Back</button></div>;
@@ -105,6 +111,9 @@ export default function Learning() {
         )}
 
         {review ? <ReviewPanel r={review} onBack={goCurrent} />
+          : it && it.type === "walkthrough"
+            ? <><div className="header"><span>{it.subtopic}<span className="badge">code walkthrough</span></span></div>
+                <CodeWalkthrough wt={it.walkthrough} onDone={walkthroughDone} doneLabel="I've reviewed this →" /></>
           : it ? <Question it={it} {...{ selected, setSelected, answerText, setAnswerText, hints, hintsUsed,
               content, result, submitting, reveal, showContent, submit, next }} />
           : <Complete score={score} onDash={() => nav(`/course/${courseId}/dashboard?session=${sid}`)}
@@ -145,6 +154,17 @@ function Rail({ map, currentId, reviewId, score, onCurrent, onReview }) {
 
 // --- read-only review of a completed question (no reattempt) ---------------
 function ReviewPanel({ r, onBack }) {
+  if (r.type === "walkthrough") {
+    return (
+      <div>
+        <div className="header">
+          <span>{r.subtopic}<span className="badge">code walkthrough</span></span>
+          <button className="link" onClick={onBack}>← back to current</button>
+        </div>
+        <CodeWalkthrough wt={r.walkthrough} readonly />
+      </div>
+    );
+  }
   return (
     <div>
       <div className="header">

@@ -19,7 +19,7 @@ def _ordered_interactions(course_id: str) -> list[dict]:
     # MCQ→Q&A escalation path (spec 04 §4), never in the normal course flow.
     return fetchall(
         """SELECT i.id, i.subtopic_id, i.type, i.dl, i.ordinal, i.question_md,
-                  i.content_panel_md, i.diagram_ref, s.name subtopic, s.ordinal s_ord,
+                  i.content_panel_md, i.diagram_ref, i.walkthrough, s.name subtopic, s.ordinal s_ord,
                   t.name topic, t.ordinal t_ord
            FROM interactions i JOIN subtopics s ON i.subtopic_id = s.id
            JOIN topics t ON s.topic_id = t.id
@@ -45,7 +45,7 @@ def _public(it: dict, course_id: str, session_id: str, *, escalated_from: str | 
         "SELECT is_correct correct, hints_used, band FROM responses WHERE session_id = %s "
         "ORDER BY responded_at DESC LIMIT 4", (session_id,))
     wdl = adaptive.working_dl(it["dl"], list(reversed([dict(r) for r in recent])))
-    return {
+    pub = {
         "id": str(it["id"]), "type": it["type"], "dl": it["dl"], "working_dl": wdl,
         "subtopic": it["subtopic"], "question_md": it["question_md"],
         "options": [{"label": o["label"], "text": o["text"]} for o in opts],
@@ -54,6 +54,9 @@ def _public(it: dict, course_id: str, session_id: str, *, escalated_from: str | 
         "base_score": it["dl"] * 2,
         "escalated_from": escalated_from,
     }
+    if it["type"] == "walkthrough":       # read-only guided code tour (not scored)
+        pub["walkthrough"] = it.get("walkthrough")
+    return pub
 
 
 def create_session(course_id: str, user_id: str | None) -> dict:
@@ -167,7 +170,12 @@ def session_map(session_id: str) -> dict:
             index[key] = g
             groups.append(g)
         r = resp.get(str(it["id"]))
-        status = "unanswered" if not r else ("correct" if r["is_correct"] else "wrong")
+        if not r:
+            status = "unanswered"
+        elif it["type"] == "walkthrough":
+            status = "reviewed"          # read-only, neutral tick (no green/red)
+        else:
+            status = "correct" if r["is_correct"] else "wrong"
         g["items"].append({"id": str(it["id"]), "type": it["type"], "dl": it["dl"],
                            "ordinal": it["ordinal"], "status": status,
                            "is_current": str(it["id"]) == cur_id})
@@ -192,6 +200,7 @@ def review_interaction(session_id: str, interaction_id: str) -> dict:
     return {
         "id": str(it["id"]), "type": it["type"], "dl": it["dl"], "subtopic": it["subtopic"],
         "question_md": it["question_md"], "content_md": it["content_panel_md"],
+        "walkthrough": it.get("walkthrough") if it["type"] == "walkthrough" else None,
         "diagram_ref": str(it["diagram_ref"]) if it["diagram_ref"] else None,
         "options": [{"label": o["label"], "text": o["text"], "is_correct": o["is_correct"]} for o in opts],
         "answer_key": it["answer_key"],
@@ -338,7 +347,15 @@ def submit_answer(session_id: str, interaction_id: str, *, selected_label: str |
     escalated_from = pend["escalated_from"] if (pend and pend.get("qa_id") == interaction_id) else None
 
     result: dict
-    if it["type"] == "mcq":
+    if it["type"] == "walkthrough":
+        # read-only content: mark reviewed (non-scored) and advance to the paired MCQ
+        execute(
+            """INSERT INTO responses (session_id, interaction_id, user_answer, is_correct, dl,
+                 hints_used, score_awarded, graded_by)
+               VALUES (%s,%s,'reviewed',NULL,%s,0,0,'engine')""",
+            (session_id, interaction_id, it["dl"]))
+        result = {"reviewed": True, "score_awarded": 0}
+    elif it["type"] == "mcq":
         correct = (selected_label or "").strip().upper() == (it["answer_key"] or "").strip().upper()
         score = mcq_score(dl=it["dl"], hints_used=hints, correct=correct)
         execute(

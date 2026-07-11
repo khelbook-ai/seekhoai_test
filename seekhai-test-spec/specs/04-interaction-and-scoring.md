@@ -26,6 +26,17 @@ and hints exist only to help complete interactions.
   they can't type math comfortably on this screen (content-feedback finding, `06 §7`). Math
   in the *question* is rendered (LaTeX, `07 §1`); the *answer* stays plain-language.
 
+### Guided code walkthrough (technical learners)
+
+A **read-only, stepped code tour** for `orientation = technical` learners: a small realistic
+code example (file tree + syntax-highlighted viewer) where each **concept step highlights the
+relevant line range(s)** and can switch files. It is **not scored** — the learner reads it and
+marks it reviewed — and it is **immediately followed by a paired MCQ** that tests the code
+(which escalates to Q&A on a wrong answer like any other MCQ). Generated at build time
+(`03 §7f`) and appended to the subtopic; stored on the interaction (`type = walkthrough`,
+`interactions.walkthrough` JSON, `06 §1`). Line ranges are validated/clamped so the UI can
+never receive an out-of-bounds highlight. Rendered per `07 §2`.
+
 **Diagram rule (both types):** diagrams appear **in questions, never in answer choices.**
 
 **Difficulty visibility (required):** every question shows its **difficulty level** (DL1

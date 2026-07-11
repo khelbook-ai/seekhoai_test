@@ -217,6 +217,14 @@ Produces a **3-rung hint ladder per interaction**, personalized to that exact qu
 - Diagrams are stored as blobs in local Postgres (`blobs` bytea, via the `BlobStore` interface);
   interactions reference them by `diagram_ref` (a `blobs.id`).
 
+### 7f. Code-Walkthrough Generator (technical learners)
+Produces a **guided read-only code walkthrough** for `orientation = technical`: a small,
+idiomatic code example (1-3 short files) plus **concept steps that each highlight the relevant
+line ranges** (may switch files), and a **paired MCQ** that tests understanding of the code.
+Line ranges are validated/clamped to each file's real length. Stored as a `walkthrough`
+interaction (`04 §1`, `06 §1`). Model class: **strong**. Best-effort — a failure never breaks
+the build.
+
 **Generator output:** a list of `Interaction` objects (see `06-data-and-feedback.md` schema),
 each with question, options/rubric, hint ladder, content panel, optional diagram, DL, and
 `gen_latency_ms`.

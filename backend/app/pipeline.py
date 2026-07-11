@@ -255,6 +255,39 @@ def _build_followups(st: dict, package: dict, intent: dict, domain_grounding: di
         events.emit(course_id, "generation", "warn", f"  ↳ seed follow-up failed ({str(e)[:50]})")
 
 
+# --- guided code walkthrough (spec 04 §1, 07 §2) -----------------------------
+def _build_walkthrough(st: dict, package: dict, intent: dict, course_id: str) -> None:
+    """For technical learners: append a read-only code walkthrough + a paired MCQ that tests
+    it (the MCQ escalates to Q&A on a wrong answer like any other). Best-effort — a failure
+    never breaks the build."""
+    from app.agents.generators import walkthrough as wt_gen
+
+    try:
+        res = wt_gen.generate_walkthrough(st, package, intent, int(package.get("_dl", 2)), course_id)
+    except Exception as e:
+        events.emit(course_id, "generation", "warn", f"  ↳ walkthrough failed ({str(e)[:50]})")
+        return
+    sid = st["subtopic_id"]
+    nxt = fetchone("SELECT COALESCE(MAX(ordinal),-1)+1 n FROM interactions WHERE subtopic_id=%s", (sid,))["n"]
+    gen = res.get("_gen", {})
+    execute(
+        """INSERT INTO interactions (subtopic_id, type, role, dl, ordinal, question_md,
+             walkthrough, gen_model, gen_latency_ms, gen_tokens_in, gen_tokens_out)
+           VALUES (%s,'walkthrough','main',%s,%s,%s,%s,%s,%s,%s,%s)""",
+        (sid, int(package.get("_dl", 2)), nxt, res["walkthrough"].get("title", "Code walkthrough"),
+         json.dumps(res["walkthrough"]), gen.get("model"), gen.get("latency_ms"),
+         gen.get("tin"), gen.get("tout")),
+    )
+    events.emit(course_id, "generation", "generate",
+                f"  ↳ code walkthrough ({len(res['walkthrough']['steps'])} steps) for '{st['name']}'")
+    # paired MCQ that tests the code (option-checked so it has 4 options + a valid answer_key)
+    mcq = res.get("mcq")
+    if isinstance(mcq, dict) and mcq.get("options"):
+        mcq = {**mcq, "_type": "mcq", "_dl": int(package.get("_dl", 2)), "_gen": gen}
+        option.check_and_fix([mcq])
+        _persist_interaction(sid, nxt + 1, mcq, [], package, role="main")
+
+
 # --- per-subtopic worker (runs concurrently, spec 02 §5) ---------------------
 def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode: str,
                     domain_grounding: dict, intent: dict, since: str | None) -> None:
@@ -311,6 +344,10 @@ def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode
     # A learner reaches Q&A only after a wrong MCQ; the first follow-up is pre-built and
     # the reserve backs runtime root-cause probes so we never scrape mid-session.
     _build_followups(st, package, intent, domain_grounding, course_id)
+
+    # Technical learners get a guided code walkthrough + a paired MCQ (spec 04 §1, 07 §2).
+    if (intent or {}).get("orientation") == "technical":
+        _build_walkthrough(st, package, intent, course_id)
 
     # Register this freshly-built subtopic so future similar courses can reuse it (spec 05 §11).
     try:

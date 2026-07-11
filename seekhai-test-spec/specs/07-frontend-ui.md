@@ -73,6 +73,15 @@ with a tick:
 a **spinner** on the button and a disabled state — especially **submitting a Q&A answer** (which
 calls the grader and must never feel frozen), plus loading a session, a review, or building.
 
+**Guided code walkthrough (technical learners).** When the current interaction is a
+`walkthrough` (`04 §1`), render a two-pane widget: a **left column of concept steps**
+(Prev/Next + click to jump) and a **right code pane** with a **file tree** and a
+**syntax-highlighted, read-only viewer**. Selecting a step **highlights its line range(s)**
+(a shaded band) and scrolls them into view, switching files when the step points at another
+file — mirroring the reference widget. It is read-only (no editing/execution); a **"I've
+reviewed this →"** control marks it done (non-scored) and advances to the **paired MCQ**.
+Completed walkthroughs show a neutral **▣ reviewed** tick in the rail and reopen read-only.
+
 
 ```
 ┌────────────────────────────────────────────┐
