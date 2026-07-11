@@ -1,0 +1,20 @@
+# Local Postgres only. Everything else runs on your machine (spec: local-first, no cloud).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: seekhai
+      POSTGRES_PASSWORD: seekhai
+      POSTGRES_DB: seekhai
+    ports:
+      - "5432:5432"
+    volumes:
+      - seekhai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seekhai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  seekhai_pgdata:

@@ -1,0 +1,51 @@
+# Per-agent model assignment (spec 02 §4, 03).
+# RULE: never hardcode model IDs in agent code — resolve them from here.
+#
+# ROUTING (chosen during the full-spec build): every provider is reached through
+# OpenRouter's OpenAI-compatible endpoint with a single OPENROUTER_API_KEY. The
+# spec's *independent model families* requirement is preserved — generation uses
+# GLM 5.2, verification uses Gemini, the scouting auditor uses Claude Sonnet — they
+# are genuinely different model families, just proxied through one API. Swapping any
+# assignment is a one-line edit here; agent code never sees a model ID.
+#
+# Model IDs and pricing validated against OpenRouter's live catalog at build time.
+
+defaults:
+  provider: openrouter
+  model: z-ai/glm-5.2
+
+agents:
+  # fast classifiers / light judgment (spec 03: "fast" class) — GLM 5.2 per user choice
+  prompt_guardrail:       { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  intent_classification:  { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  clarification:          { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  domain_grounding:       { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  cost_estimator:         { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  cost_reconciliation:    { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  option_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  adaptive_controller:    { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  # strong reasoning + generation (spec 03: "strong" class) — GLM family
+  course_architect:       { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  course_scout:           { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  content_generator:      { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  mcq_generator:          { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  qa_generator:           { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  hint_generator:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  diagram_agent:          { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  domain_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  qa_grader:              { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  # INDEPENDENT model families (deliberately not GLM) — spec 03 §5b / §10
+  scouting_auditor:       { provider: openrouter, model: anthropic/claude-sonnet-5, class: sonnet } # spec 05 §4
+  content_verification:   { provider: openrouter, model: google/gemini-2.5-pro,  class: gemini } # spec 03 §10
+  vision_image_extractor: { provider: openrouter, model: google/gemini-2.5-flash, class: vision } # spec 05 §2
+
+providers:
+  openrouter: { base_url: "https://openrouter.ai/api/v1", api_key_env: "OPENROUTER_API_KEY" }
+
+# USD per 1,000,000 tokens (input/output). Feeds the Cost Estimator (spec 03 §6) and
+# per-call cost capture in generation_metrics (spec 06). Validated against OpenRouter.
+pricing:
+  z-ai/glm-5.2:                { input: 0.42, output: 1.32 }
+  anthropic/claude-sonnet-5:   { input: 2.00, output: 10.00 }
+  google/gemini-2.5-pro:       { input: 1.25, output: 10.00 }
+  google/gemini-2.5-flash:     { input: 0.30, output: 2.50 }

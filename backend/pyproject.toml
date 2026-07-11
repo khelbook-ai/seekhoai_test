@@ -1,0 +1,9 @@
+[project]
+name = "seekhai-backend"
+version = "0.0.0"
+description = "Seekhai_test backend — Phase 0 scaffold"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
