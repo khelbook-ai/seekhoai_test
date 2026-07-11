@@ -81,9 +81,10 @@ def plan_interactions(package: dict) -> list[dict]:
     Returns a list of {kind, dl, definition} specs of length target_question_count."""
     q = max(1, int(package.get("target_question_count", 4)))
     base_dl = int(package.get("_dl", 2))
+    # First interaction is always the definition MCQ (04 §1). For the rest, the interaction
+    # generator CHOOSES the best format per concept (mcq/order/blanks/dragdrop, 04 §1).
     specs = [{"kind": "mcq", "dl": base_dl, "definition": True}]
     for i in range(1, q):
-        # nudge DL up on later items within the subtopic
         dl = min(3, base_dl + (1 if i >= q - 1 else 0))
-        specs.append({"kind": "mcq", "dl": dl, "definition": False})
+        specs.append({"kind": "choose", "dl": dl, "definition": False})
     return specs

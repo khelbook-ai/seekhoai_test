@@ -84,9 +84,10 @@ sources(
 
 -- Generated content ----------------------------------------------------------
 interactions(
-  id uuid pk, subtopic_id uuid fk, type text,             -- mcq|qa|walkthrough
+  id uuid pk, subtopic_id uuid fk, type text,             -- mcq|qa|walkthrough|order|blanks|dragdrop
   role text default 'main',                               -- main | followup_seed | followup_probe (04 §4)
   walkthrough jsonb,                                       -- code tour {files, steps} for type='walkthrough' (04 §1)
+  payload jsonb,                                           -- typed body + correct answer for order/blanks/dragdrop (04 §1)
   dl int, ordinal int,
   question_md text, diagram_ref uuid,                     -- fk to blobs.id, nullable
   content_panel_md text,                                  -- personalized content

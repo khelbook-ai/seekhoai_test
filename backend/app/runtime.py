@@ -5,6 +5,9 @@ and adaptive DL. Reads persisted content ONLY — never regenerates (token-free 
 """
 from __future__ import annotations
 
+import json
+
+from app import interactions as interactions_mod
 from app.agents import adaptive, qa_grader
 from app.db import execute, fetchall, fetchone
 from app.scoring import mcq_score, qa_score
@@ -19,8 +22,8 @@ def _ordered_interactions(course_id: str) -> list[dict]:
     # MCQ→Q&A escalation path (spec 04 §4), never in the normal course flow.
     return fetchall(
         """SELECT i.id, i.subtopic_id, i.type, i.dl, i.ordinal, i.question_md,
-                  i.content_panel_md, i.diagram_ref, i.walkthrough, s.name subtopic, s.ordinal s_ord,
-                  t.name topic, t.ordinal t_ord
+                  i.content_panel_md, i.diagram_ref, i.walkthrough, i.payload,
+                  s.name subtopic, s.ordinal s_ord, t.name topic, t.ordinal t_ord
            FROM interactions i JOIN subtopics s ON i.subtopic_id = s.id
            JOIN topics t ON s.topic_id = t.id
            WHERE t.course_id = %s AND i.role = 'main'
@@ -56,6 +59,8 @@ def _public(it: dict, course_id: str, session_id: str, *, escalated_from: str | 
     }
     if it["type"] == "walkthrough":       # read-only guided code tour (not scored)
         pub["walkthrough"] = it.get("walkthrough")
+    if it["type"] in interactions_mod.RICH_TYPES:   # order/blanks/dragdrop — strip the answer
+        pub["payload"] = interactions_mod.public_payload(str(it["id"]), it["type"], it.get("payload"))
     return pub
 
 
@@ -197,10 +202,19 @@ def review_interaction(session_id: str, interaction_id: str) -> dict:
                  (session_id, interaction_id))
     opts = fetchall("SELECT label, text, is_correct FROM mcq_options WHERE interaction_id=%s ORDER BY label",
                     (interaction_id,)) if it["type"] == "mcq" else []
+    rich = it["type"] in interactions_mod.RICH_TYPES
+    your_response = None
+    if rich and r and r["user_answer"]:
+        try:
+            your_response = json.loads(r["user_answer"])
+        except (ValueError, TypeError):
+            your_response = None
     return {
         "id": str(it["id"]), "type": it["type"], "dl": it["dl"], "subtopic": it["subtopic"],
         "question_md": it["question_md"], "content_md": it["content_panel_md"],
         "walkthrough": it.get("walkthrough") if it["type"] == "walkthrough" else None,
+        "payload": it.get("payload") if rich else None,   # full payload incl. correct answer
+        "your_response": your_response,
         "diagram_ref": str(it["diagram_ref"]) if it["diagram_ref"] else None,
         "options": [{"label": o["label"], "text": o["text"], "is_correct": o["is_correct"]} for o in opts],
         "answer_key": it["answer_key"],
@@ -327,7 +341,7 @@ def _next_probe(session_id: str, it: dict, pend: dict, course_id: str) -> bool:
 
 
 def submit_answer(session_id: str, interaction_id: str, *, selected_label: str | None = None,
-                  answer_text: str | None = None) -> dict:
+                  answer_text: str | None = None, response: dict | None = None) -> dict:
     course_id = _session_course(session_id)
     it = fetchone(
         "SELECT i.*, s.name subtopic FROM interactions i JOIN subtopics s ON i.subtopic_id=s.id "
@@ -355,6 +369,23 @@ def submit_answer(session_id: str, interaction_id: str, *, selected_label: str |
                VALUES (%s,%s,'reviewed',NULL,%s,0,0,'engine')""",
             (session_id, interaction_id, it["dl"]))
         result = {"reviewed": True, "score_awarded": 0}
+    elif it["type"] in interactions_mod.RICH_TYPES:
+        # order / blanks / dragdrop — graded deterministically, scored + escalated like an MCQ
+        correct = interactions_mod.grade(it["type"], it.get("payload"), response or {})
+        score = mcq_score(dl=it["dl"], hints_used=hints, correct=correct)
+        execute(
+            """INSERT INTO responses (session_id, interaction_id, user_answer, is_correct, dl,
+                 hints_used, score_awarded, graded_by, escalated_from)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,'engine',%s)""",
+            (session_id, interaction_id, json.dumps(response or {}), correct, it["dl"], hints, score,
+             escalated_from),
+        )
+        result = {"correct": correct, "score_awarded": score,
+                  "solution": it.get("payload")}   # reveal the correct answer after submit
+        if adaptive.is_weakness(interaction_type=it["type"], correct=correct, band=None):
+            _flag_weakness(user_id, str(it["subtopic_id"]))
+        if not correct and _start_followup(session_id, it, course_id):
+            result["escalated"] = True
     elif it["type"] == "mcq":
         correct = (selected_label or "").strip().upper() == (it["answer_key"] or "").strip().upper()
         score = mcq_score(dl=it["dl"], hints_used=hints, correct=correct)

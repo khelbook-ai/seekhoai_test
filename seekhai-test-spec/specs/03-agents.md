@@ -217,6 +217,15 @@ Produces a **3-rung hint ladder per interaction**, personalized to that exact qu
 - Diagrams are stored as blobs in local Postgres (`blobs` bytea, via the `BlobStore` interface);
   interactions reference them by `diagram_ref` (a `blobs.id`).
 
+### 7g. Interaction Generator (agent-chosen format)
+For each non-definition slot, this generator **chooses the interaction format that best teaches
+the concept** and produces it: `mcq` (default), `order` (processes/pipelines), `blanks`
+(terminology/params/code fragments, from a word bank), or `dragdrop` (architecture component
+roles). It always emits a `content_panel_md` + 3-rung hints. Non-mcq bodies are **validated for
+internal consistency** (ids resolve, every box/blank has a correct answer, ranges/counts sane)
+so runtime grading is deterministic; invalid bodies fall back to `mcq`. All formats are scored
+and escalate like an MCQ (`04 §1/§4`). Model class: **strong**.
+
 ### 7f. Code-Walkthrough Generator (technical learners)
 Produces a **guided read-only code walkthrough** for `orientation = technical`: a small,
 idiomatic code example (1-3 short files) plus **concept steps that each highlight the relevant

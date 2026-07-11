@@ -4,9 +4,34 @@ import { api } from "../api.js";
 import MarkdownView from "../components/MarkdownView.jsx";
 import FeedbackWidget from "../components/FeedbackWidget.jsx";
 import CodeWalkthrough from "../components/CodeWalkthrough.jsx";
+import OrderSteps from "../components/interactions/OrderSteps.jsx";
+import FillBlanks from "../components/interactions/FillBlanks.jsx";
+import ArchDiagram from "../components/interactions/ArchDiagram.jsx";
 
 const DL_LABEL = { 1: "Easy", 2: "Medium", 3: "Hard" };
 const TICK = { correct: "✓", wrong: "✗", unanswered: "○", reviewed: "▣" };
+const RICH = { order: OrderSteps, blanks: FillBlanks, dragdrop: ArchDiagram };
+
+// Render a rich interaction body (order/blanks/dragdrop), live or read-only.
+function RichBody({ it, value, onChange, decided, solution, readonly }) {
+  const Comp = RICH[it.type];
+  if (!Comp) return null;
+  return <Comp payload={it.payload} value={value} onChange={onChange}
+    decided={decided} solution={solution} readonly={readonly} />;
+}
+// wrap the component's inner value into the backend response shape
+function wrapResponse(type, v, it) {
+  if (type === "order") return { order: v && v.length ? v : (it.payload.items || []).map((i) => i.id) };
+  if (type === "blanks") return { answers: v || {} };
+  if (type === "dragdrop") return { mapping: v || {} };
+  return {};
+}
+function richComplete(type, v, it) {
+  if (type === "order") return true;
+  if (type === "blanks") return Object.keys(v || {}).length >= (it.payload.blanks || []).length;
+  if (type === "dragdrop") return Object.keys(v || {}).length >= (it.payload.boxes || []).length;
+  return false;
+}
 
 // Learning screen (spec 07 §2). Session is RESUMED (progress + score survive navigation).
 // A sub-tab rail lists every question per subtopic with a green/red/neutral tick; completed
@@ -25,6 +50,7 @@ export default function Learning() {
   // per-question interactive state
   const [selected, setSelected] = useState(null);
   const [answerText, setAnswerText] = useState("");
+  const [richResp, setRichResp] = useState(null);   // order/blanks/dragdrop response
   const [hints, setHints] = useState([]);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [content, setContent] = useState(null);
@@ -40,7 +66,8 @@ export default function Learning() {
   }, [courseId]);
 
   function resetLocal() {
-    setSelected(null); setAnswerText(""); setHints([]); setHintsUsed(0); setContent(null); setResult(null);
+    setSelected(null); setAnswerText(""); setRichResp(null); setHints([]); setHintsUsed(0);
+    setContent(null); setResult(null);
   }
   async function refreshMap(s = sid) { try { setMap(await api.sessionMap(s)); } catch {} }
 
@@ -68,9 +95,9 @@ export default function Learning() {
   async function submit() {
     setSubmitting(true); setErr(null);
     try {
-      const payload = it.type === "mcq"
-        ? { interaction_id: it.id, selected_label: selected }
-        : { interaction_id: it.id, answer_text: answerText };
+      const payload = it.type === "mcq" ? { interaction_id: it.id, selected_label: selected }
+        : it.type === "qa" ? { interaction_id: it.id, answer_text: answerText }
+        : { interaction_id: it.id, response: wrapResponse(it.type, richResp, it) };
       const r = await api.submitAnswer(sid, payload);
       setResult(r); setScore(r.running_score); refreshMap();
     } catch (e) { setErr(e.message); } finally { setSubmitting(false); }
@@ -114,8 +141,8 @@ export default function Learning() {
           : it && it.type === "walkthrough"
             ? <><div className="header"><span>{it.subtopic}<span className="badge">code walkthrough</span></span></div>
                 <CodeWalkthrough wt={it.walkthrough} onDone={walkthroughDone} doneLabel="I've reviewed this →" /></>
-          : it ? <Question it={it} {...{ selected, setSelected, answerText, setAnswerText, hints, hintsUsed,
-              content, result, submitting, reveal, showContent, submit, next }} />
+          : it ? <Question it={it} {...{ selected, setSelected, answerText, setAnswerText, richResp, setRichResp,
+              hints, hintsUsed, content, result, submitting, reveal, showContent, submit, next }} />
           : <Complete score={score} onDash={() => nav(`/course/${courseId}/dashboard?session=${sid}`)}
               onOverview={() => nav(`/course/${courseId}`)} />}
       </div>
@@ -165,6 +192,23 @@ function ReviewPanel({ r, onBack }) {
       </div>
     );
   }
+  if (RICH[r.type]) {
+    const inner = r.type === "order" ? r.your_response?.order
+      : r.type === "blanks" ? r.your_response?.answers : r.your_response?.mapping;
+    return (
+      <div>
+        <div className="header">
+          <span>{r.subtopic}<span className={"badge dl dl" + r.dl}>DL{r.dl}</span>
+            <span className={"badge " + (r.is_correct ? "" : "flag")}>{r.is_correct ? "correct" : "incorrect"}</span></span>
+          <button className="link" onClick={onBack}>← back to current</button>
+        </div>
+        <div className="question"><MarkdownView>{r.question_md}</MarkdownView></div>
+        <RichBody it={{ type: r.type, payload: r.payload }} value={inner} onChange={() => {}}
+          decided solution={r.payload} readonly />
+        {r.content_md && <div className="panel box"><h3>Content</h3><MarkdownView>{r.content_md}</MarkdownView></div>}
+      </div>
+    );
+  }
   return (
     <div>
       <div className="header">
@@ -202,13 +246,16 @@ function ReviewPanel({ r, onBack }) {
 }
 
 // --- the interactive question ----------------------------------------------
-function Question({ it, selected, setSelected, answerText, setAnswerText, hints, hintsUsed,
-                    content, result, submitting, reveal, showContent, submit, next }) {
+function Question({ it, selected, setSelected, answerText, setAnswerText, richResp, setRichResp,
+                    hints, hintsUsed, content, result, submitting, reveal, showContent, submit, next }) {
   const decided = !!result;
   const isFollowup = !!it.escalated_from;
+  const isRich = !!RICH[it.type];
   const hintsLeft = (it.hints_available || 3) - hintsUsed;
   const ladder = [...hints].sort((a, b) => b.level - a.level);
-  const canSubmit = it.type === "mcq" ? !!selected : answerText.trim().length > 3;
+  const canSubmit = it.type === "mcq" ? !!selected
+    : isRich ? richComplete(it.type, richResp, it)
+    : answerText.trim().length > 3;
 
   return (
     <div>
@@ -253,6 +300,9 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, hints,
             </button>;
           })}
         </div>
+      ) : isRich ? (
+        <RichBody it={it} value={richResp} onChange={setRichResp} decided={decided}
+          solution={result?.solution} />
       ) : (
         <textarea className="text" placeholder="Answer in a sentence or two…" value={answerText}
           disabled={decided} onChange={(e) => setAnswerText(e.target.value)} style={{ minHeight: 130 }} />
@@ -268,6 +318,8 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, hints,
         <div className={"result " + (result.correct ? "correct" : "incorrect")}>
           {it.type === "mcq"
             ? (result.correct ? "Correct!" : `Not quite — the answer was ${result.correct_label}.`)
+            : isRich
+            ? (result.correct ? "Correct!" : "Not quite — the correct answer is shown above.")
             : `Graded: ${result.band}`}
           <span className="detail">+{result.score_awarded} points
             {result.escalated && " · here's a quick follow-up to pinpoint the gap"}</span>

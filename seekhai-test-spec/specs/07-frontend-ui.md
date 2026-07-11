@@ -73,6 +73,15 @@ with a tick:
 a **spinner** on the button and a disabled state — especially **submitting a Q&A answer** (which
 calls the grader and must never feel frozen), plus loading a session, a review, or building.
 
+**Richer interaction types.** The interaction area renders by `type` (`04 §1`): **`order`** —
+a reorderable step list (↑/↓); **`blanks`** — tap a word-bank chip to drop it into a blank, tap
+a blank to clear; **`dragdrop`** — **drag entities into labelled architecture boxes** (native
+drag-and-drop, with tap-to-place as a touch fallback). Content/Hint stay in the same top row;
+Submit is enabled once the response is complete. After submit the **correct answer is revealed**
+(right positions/words/mappings marked green, wrong ones red), and a wrong answer escalates to
+the same follow-up Q&A. Completed ones reopen read-only in review, showing the learner's
+response against the solution.
+
 **Guided code walkthrough (technical learners).** When the current interaction is a
 `walkthrough` (`04 §1`), render a two-pane widget: a **left column of concept steps**
 (Prev/Next + click to jump) and a **right code pane** with a **file tree** and a

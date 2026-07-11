@@ -14,6 +14,22 @@ and hints exist only to help complete interactions.
   of `<subtopic>`?" — e.g. for a learner starting MCP, the very first thing shown is an MCQ
   asking for the definition of MCP.
 
+### Richer scored interactions (agent-chosen)
+Beyond the MCQ, three more formats test a concept — and the **interaction generator chooses
+the best format per concept** (`03 §7g`), so a process becomes an ordering task, an
+architecture becomes a drag-drop, terminology becomes fill-in-the-blanks:
+- **`order`** — arrange steps into the correct sequence (processes/pipelines).
+- **`blanks`** — fill blanks in a sentence/code snippet from a word bank (terminology, params).
+- **`dragdrop`** — drag entities into the labelled boxes of an architecture diagram (structure,
+  component roles).
+
+**These are equivalent to an MCQ**: scored **all-or-nothing** with the *same* formula
+(`DL × 2` − hints), and a **wrong answer triggers the identical Q&A root-cause escalation**
+(§4). Grading is **deterministic** (pure Python from a validated `payload`) — no runtime LLM —
+and the correct answer is **stripped** before the interaction is served, then revealed after
+submit. The first interaction of a subtopic is still the **definition MCQ**. Stored in
+`interactions.payload` (`06 §1`); rendered per `07 §2`.
+
 ### Q&A
 - Free-text response, graded by the Q&A Grader against a rubric.
 - Question may include a diagram.

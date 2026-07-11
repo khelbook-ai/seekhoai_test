@@ -288,6 +288,48 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .wt-code code[class*="language-"] { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13.5px; line-height: 22px; background: none; padding: 0; white-space: pre; tab-size: 4; }
 
+/* ---- order-the-steps interaction (spec 04 §1) ---- */
+.order-list { display: flex; flex-direction: column; gap: 10px; }
+.order-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--panel);
+  border: 2px solid var(--line); border-radius: 10px; }
+.order-item.ok { border-color: var(--correct); background: #f1f8f4; }
+.order-item.bad { border-color: var(--incorrect); background: #fbf1f0; }
+.order-n { flex: 0 0 1.6em; height: 1.6em; line-height: 1.6em; text-align: center; border-radius: 50%;
+  background: #eceae6; font-weight: 700; font-size: 0.85rem; }
+.order-text { flex: 1 1 auto; }
+.order-btns { display: flex; flex-direction: column; }
+.order-btns .link { font-size: 1.1rem; line-height: 1; padding: 2px 6px; }
+
+/* ---- fill-in-the-blanks interaction ---- */
+.blanks-text { font-size: 1.15rem; line-height: 2.1; }
+.blank-slot { min-width: 74px; padding: 2px 10px; margin: 0 2px; border: none; border-bottom: 2px solid var(--accent);
+  background: #f1f8f4; border-radius: 4px 4px 0 0; font: inherit; cursor: pointer; }
+.blank-slot.sel { background: #e3ede9; outline: 2px solid var(--accent); }
+.blank-slot.ok { background: #f1f8f4; border-color: var(--correct); }
+.blank-slot.bad { background: #fbf1f0; border-color: var(--incorrect); text-decoration: line-through; }
+.blank-fix { color: var(--correct); font-style: normal; font-weight: 600; text-decoration: none; }
+.bank { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.bank-word { padding: 10px 16px; border: 2px solid var(--line); border-radius: 999px; background: var(--panel);
+  cursor: pointer; font: inherit; }
+.bank-word:hover { border-color: var(--accent); }
+
+/* ---- drag-drop architecture diagram ---- */
+.arch-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.arch-box { border: 2px dashed var(--line); border-radius: 12px; padding: 12px; min-height: 110px;
+  display: flex; flex-direction: column; gap: 8px; background: var(--panel); cursor: pointer; }
+.arch-box.over { border-color: var(--accent); background: #f1f8f4; }
+.arch-box.ok { border-style: solid; border-color: var(--correct); background: #f1f8f4; }
+.arch-box.bad { border-style: solid; border-color: var(--incorrect); background: #fbf1f0; }
+.arch-label { font-weight: 700; font-size: 0.95rem; }
+.arch-slot { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; }
+.arch-hint { color: var(--muted); font-size: 0.85rem; }
+.arch-fix { font-size: 0.85rem; color: var(--correct); }
+.arch-tray { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.chip { display: inline-block; padding: 10px 14px; border: 2px solid var(--accent); border-radius: 10px;
+  background: var(--panel); cursor: grab; font-size: 0.95rem; user-select: none; }
+.chip.sel { background: #e3ede9; }
+.chip.placed { border-style: solid; cursor: grab; }
+
 @media (max-width: 720px) {
   .app-shell { flex-direction: column; }
   .sidebar { width: auto; flex: none; height: auto; position: static; border-right: none;

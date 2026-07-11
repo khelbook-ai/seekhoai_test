@@ -107,6 +107,7 @@ class AnswerReq(BaseModel):
     interaction_id: str
     selected_label: str | None = None
     answer_text: str | None = None
+    response: dict | None = None   # order/blanks/dragdrop answer (spec 04 §1)
 
 
 @router.post("/sessions/{session_id}/answer")
@@ -117,7 +118,8 @@ def submit_answer(session_id: str, req: AnswerReq) -> dict:
         answer_text = g.sanitized_text
     try:
         return runtime.submit_answer(session_id, req.interaction_id,
-                                     selected_label=req.selected_label, answer_text=answer_text)
+                                     selected_label=req.selected_label, answer_text=answer_text,
+                                     response=req.response)
     except KeyError:
         raise HTTPException(404, "interaction not found")
 

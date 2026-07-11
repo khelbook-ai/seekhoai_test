@@ -39,7 +39,8 @@ def working_dl(base_dl: int, recent: list[dict]) -> int:
 
 
 def is_weakness(*, interaction_type: str, correct: bool, band: str | None) -> bool:
-    """WEAKNESS_THRESHOLD (D5): wrong MCQ, or Q&A incorrect/partial."""
-    if interaction_type == "mcq":
-        return not correct
-    return band in ("incorrect", "partial")
+    """WEAKNESS_THRESHOLD (D5): a wrong scored interaction (mcq / order / blanks / dragdrop),
+    or a Q&A graded incorrect/partial."""
+    if interaction_type == "qa":
+        return band in ("incorrect", "partial")
+    return not correct

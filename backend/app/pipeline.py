@@ -13,6 +13,7 @@ from app import events, library
 from app.agents import auditor, cost_reconciliation, scout
 from app.agents.checkers import option, semantic
 from app.agents.generators import content as gen
+from app.agents.generators import interaction
 from app.blobstore import get_blobstore
 from app.config import get_settings
 from app.db import execute, fetchone
@@ -43,12 +44,13 @@ def _persist_interaction(subtopic_id: str, ordinal: int, item: dict,
     row = execute(
         """INSERT INTO interactions
              (subtopic_id, type, role, dl, ordinal, question_md, content_panel_md, qa_rubric,
-              answer_key, gen_model, gen_latency_ms, gen_tokens_in, gen_tokens_out)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+              answer_key, payload, gen_model, gen_latency_ms, gen_tokens_in, gen_tokens_out)
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
         (subtopic_id, item["_type"], role, item["_dl"], ordinal, item.get("question_md"),
          item.get("content_panel_md"),
          json.dumps(item.get("qa_rubric")) if item.get("qa_rubric") else None,
-         answer_key, gen_meta.get("model"), gen_meta.get("latency_ms"),
+         answer_key, json.dumps(item.get("payload")) if item.get("payload") else None,
+         gen_meta.get("model"), gen_meta.get("latency_ms"),
          gen_meta.get("tin"), gen_meta.get("tout")),
     )
     interaction_id = str(row["id"])
@@ -173,14 +175,17 @@ def _one_interaction(spec: dict, st: dict, package: dict, intent: dict,
     checks: list[tuple] = []
     flagged = False
     for attempt in range(max_retries + 1):
-        label = f"{spec['kind'].upper()}{' (definition)' if spec.get('definition') else ''} DL{spec['dl']}"
-        events.emit(course_id, "generation", "generate",
-                    f"generating {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
         if spec["kind"] == "mcq":
             item = gen.generate_mcq(st, package, intent, spec["dl"],
                                     definition=spec["definition"], course_id=course_id)
+        elif spec["kind"] == "choose":
+            # the agent picks the best format for this concept (mcq/order/blanks/dragdrop)
+            item = interaction.generate_interaction(st, package, intent, spec["dl"], course_id=course_id)
         else:
             item = gen.generate_qa(st, package, intent, spec["dl"], course_id=course_id)
+        label = f"{item['_type'].upper()}{' (definition)' if spec.get('definition') else ''} DL{spec['dl']}"
+        events.emit(course_id, "generation", "generate",
+                    f"generated {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
 
         events.emit(course_id, "checking", "check", "Domain Checker (GLM) reviewing framing…")
         dom = semantic.domain_check(item, st, domain_grounding, course_id)
@@ -188,17 +193,23 @@ def _one_interaction(spec: dict, st: dict, package: dict, intent: dict,
             events.emit(course_id, "checking", "check", f"  ↳ off-domain → regen ({dom.get('reason','')[:40]})")
             st = {**st, "description": st["description"] + " | fix: " + (dom.get("regen_hint") or "")}
             continue
-        events.emit(course_id, "verification", "verify", "Verification (Gemini, independent) checking accuracy…")
-        ver = semantic.verify(item, st, package, course_id)
-        checks = [("domain", dom), ("verification", ver)]
-        if ver.get("verdict") == "fail" and attempt < max_retries:
-            events.emit(course_id, "verification", "verify", f"  ↳ failed → regen ({'; '.join(ver.get('issues', [])[:1])[:40]})")
-            st = {**st, "description": st["description"] + " | fix: " + (ver.get("suggested_fix") or "")}
-            continue
-        flagged = (not dom.get("on_domain", True)) or (ver.get("verdict") == "fail")
+        # factual verification applies to prose interactions; order/blanks/dragdrop are graded
+        # deterministically from their validated payload, so only domain framing is checked.
+        if item["_type"] in ("mcq", "qa"):
+            events.emit(course_id, "verification", "verify", "Verification (Gemini, independent) checking accuracy…")
+            ver = semantic.verify(item, st, package, course_id)
+            checks = [("domain", dom), ("verification", ver)]
+            if ver.get("verdict") == "fail" and attempt < max_retries:
+                events.emit(course_id, "verification", "verify", f"  ↳ failed → regen ({'; '.join(ver.get('issues', [])[:1])[:40]})")
+                st = {**st, "description": st["description"] + " | fix: " + (ver.get("suggested_fix") or "")}
+                continue
+            flagged = (not dom.get("on_domain", True)) or (ver.get("verdict") == "fail")
+        else:
+            checks = [("domain", dom)]
+            flagged = not dom.get("on_domain", True)
         events.emit(course_id, "verification", "verify",
-                    f"  ↳ {label}: domain={'ok' if dom.get('on_domain', True) else 'FAIL'} "
-                    f"verify={ver.get('verdict', 'pass')}" + (" · FLAGGED for review" if flagged else ""))
+                    f"  ↳ {label}: domain={'ok' if dom.get('on_domain', True) else 'FAIL'}"
+                    + (" · FLAGGED for review" if flagged else ""))
         break
     item["_checks"] = checks
     item["_flagged"] = flagged
