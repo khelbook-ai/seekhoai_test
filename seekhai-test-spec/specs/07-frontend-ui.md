@@ -6,6 +6,27 @@ consistently, prominently placed** on every interaction. Everything else is seco
 
 ---
 
+## 0. Navigation shell (left sidebar)
+
+A persistent **left sidebar** frames every screen so the tester can move back and forth
+between courses and between the stages of one course — **including returning to the
+clarification questions** — without losing work.
+
+- **New course** action at the top, then a list of **all the tester's courses** (most recent
+  first) with each course's current **status** (`awaiting_clarification` / `awaiting_cost` /
+  `building` / `built` / …). Clicking a course jumps to the stage that matches its status.
+- For the **active** course, the sidebar expands **stage links**: *Questions* (clarification),
+  *Cost & curriculum*, *Content / build* (population), *Learn*, *Dashboard*. A stage is
+  enabled once the course has reached it; earlier stages remain reachable (navigate back).
+- **State is server-persisted**, so navigation is non-destructive: every screen rehydrates
+  from the backend (`GET /api/courses`, `GET /api/courses/{id}`) rather than in-memory
+  router state — clarification questions and answers, curriculum, cost, and built content all
+  reload when revisited. The sidebar reflects build-status changes by polling the course list.
+- Responsive: on narrow screens the sidebar collapses to a top strip; the big-text single
+  column remains the primary reading surface.
+
+---
+
 ## 1. Visual system
 
 - **Palette:** neutral. One near-black text colour, a light background, one restrained accent
@@ -103,6 +124,15 @@ MCQ, transition smoothly into the escalated Q&A on the same subtopic.
 ## 5. Course-population / curriculum view (post-approval)
 
 Once building/built, show **course-level totals** at the top and **per-subtopic** rows below.
+
+**Live build log (required, testing phase).** While a course is building, show a **detailed,
+technical, tester-facing build log** that streams what the pipeline is doing in real time —
+**web search / MCP tool use / scraping / extraction**, the Scouting Auditor's score and any
+scout-again rounds, generation of each interaction, and the Domain / Verification / Option
+checks with pass/regen/flag outcomes. It is intentionally low-level (tool names, source URLs,
+model families) because this is a test build. Backed by `build_events` (`06 §1`), polled
+incrementally via `GET /api/courses/{id}/events?after=<id>`. The log remains viewable after the
+build completes.
 
 **Course-level summary bar:**
 - **# MCQs**, **# Q&A items**, **# illustrations used** (sourced vs generated),

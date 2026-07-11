@@ -11,6 +11,7 @@ Statuses: intake → awaiting_clarification → awaiting_cost → building → b
 """
 from __future__ import annotations
 
+from app import events
 from app.agents import architect, cost_estimator, intake
 from app.schemas import ClarificationQ
 from app.store import (
@@ -91,7 +92,12 @@ def _to_cost_gate(course_id: str, clarifications: list[ClarificationQ],
                 "reason": r.reason, "suggested_reframing": r.reframing}
 
     save_curriculum(course_id, curriculum)
+    events.emit(course_id, "intake", "architect",
+                f"Course Architect: '{curriculum.title}' — {len(curriculum.topics)} topics, "
+                f"{sum(len(t.subtopics) for t in curriculum.topics)} subtopics")
     est = cost_estimator.estimate(curriculum, ctx.currency_mode)
+    events.emit(course_id, "cost", "estimate",
+                f"Cost Estimator: ~${est.total_estimate:.4f} (buffer {est.buffer_pct}%) — awaiting approval")
     update_course(course_id, cost_estimate=est.model_dump(), status="awaiting_cost")
     return {"course_id": course_id, "status": "awaiting_cost",
             "curriculum": curriculum.model_dump(), "cost_estimate": est.model_dump()}
@@ -105,6 +111,7 @@ def approve_cost(course_id: str, approved: bool) -> dict:
         update_course(course_id, cost_approved=False, accepted=False, status="rejected")
         return {"course_id": course_id, "status": "rejected"}
     update_course(course_id, cost_approved=True, accepted=True, status="building")
+    events.emit(course_id, "cost", "approved", "Cost approved by user — starting content pipeline")
     return {"course_id": course_id, "status": "building"}
 
 

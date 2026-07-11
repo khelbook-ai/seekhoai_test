@@ -5,11 +5,29 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from app import build
+from app import build, events
+from app.db import fetchall
 from app.guardrail import check
-from app.store import get_course, list_subtopics
+from app.store import get_clarifications, get_course, list_subtopics
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
+
+
+@router.get("")
+def list_courses() -> dict:
+    """All courses with their current stage — powers the left sidebar (spec 07 §0)."""
+    rows = fetchall(
+        "SELECT id, title, status, currency_mode, created_at FROM courses ORDER BY created_at DESC")
+    return {"courses": [{"course_id": str(r["id"]), "title": r["title"], "status": r["status"],
+                         "currency_mode": r["currency_mode"],
+                         "created_at": r["created_at"].isoformat() if r["created_at"] else None}
+                        for r in rows]}
+
+
+@router.get("/{course_id}/events")
+def build_events(course_id: str, after: int = 0) -> dict:
+    """Live build log (spec 07 §5). Poll with the last-seen id in `after`."""
+    return {"events": events.since(course_id, after_id=after)}
 
 
 class CreateCourse(BaseModel):
@@ -56,11 +74,14 @@ def get_course_detail(course_id: str) -> dict:
     course = get_course(course_id)
     if course is None:
         raise HTTPException(404, "course not found")
+    clar = get_clarifications(course_id)
     return {
         "course_id": course_id,
         "title": course["title"],
         "status": course["status"],
         "currency_mode": course["currency_mode"],
+        "clarifications": [{"ordinal": c["ordinal"], "q": c["question"],
+                            "options": c["options"] or [], "answer": c["answer"]} for c in clar],
         "curriculum": course["curriculum"],
         "cost_estimate": course["cost_estimate"],
         "cost_approved": course["cost_approved"],

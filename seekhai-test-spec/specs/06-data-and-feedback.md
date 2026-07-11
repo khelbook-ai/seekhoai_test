@@ -158,6 +158,14 @@ guardrail_events(
   created_at timestamptz
 )
 
+-- Build-event log (tester-facing live build trace, spec 05 §9, 07 §5) ---------
+build_events(
+  id bigserial pk, course_id uuid fk,
+  phase text,                                             -- intake|scouting|generation|checking|verification|persist|cost
+  kind text,                                              -- web_search|scrape|extract|mcp|audit|generate|check|verify|warn|...
+  message text, meta jsonb, created_at timestamptz
+)
+
 -- Metrics --------------------------------------------------------------------
 generation_metrics(
   id uuid pk, course_id uuid fk, interaction_id uuid,      -- nullable for phase-level rows

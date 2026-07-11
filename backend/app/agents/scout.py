@@ -4,6 +4,7 @@ self-contained Content Package. Generators read ONLY the package (no re-scraping
 """
 from __future__ import annotations
 
+from app import events
 from app.llm import complete_json
 from app.mcp import router, tools
 from app.prompts import render
@@ -12,23 +13,30 @@ _MAX_SOURCES_PER_ROUND = 3
 
 
 def _plan(subtopic: dict, currency_mode: str, domain: str, extra: str = "") -> dict:
+    cid = subtopic.get("course_id")
+    events.emit(cid, "scouting", "plan", f"planning scout for '{subtopic['name']}' (DL{subtopic['calibrated_dl']})")
     data, _ = complete_json(
         "course_scout", "You output only JSON.",
         render("scout_plan", subtopic_name=subtopic["name"],
                description=subtopic.get("description", ""), dl=subtopic["calibrated_dl"],
                currency_mode=currency_mode, domain=domain, extra=extra),
-        phase="scouting", max_tokens=1200, course_id=subtopic.get("course_id"),
+        phase="scouting", max_tokens=1200, course_id=cid,
     )
-    return data if isinstance(data, dict) else {}
+    data = data if isinstance(data, dict) else {}
+    events.emit(cid, "scouting", "plan",
+                f"queries: {', '.join((data.get('search_queries') or [])[:4])}",
+                {"required_concepts": data.get("required_concepts", [])})
+    return data
 
 
-def _gather_sources(plan: dict, currency_mode: str, since: str | None) -> list[dict]:
+def _gather_sources(plan: dict, currency_mode: str, since: str | None,
+                    course_id: str | None = None) -> list[dict]:
     """Run searches, dedupe, and extract the top sources through the format router."""
     candidates: list[dict] = []
     seen: set[str] = set()
 
     for q in (plan.get("search_queries") or [])[:4]:
-        res = tools.web_search(q, max_results=4)
+        res = tools.web_search(q, max_results=4, course_id=course_id)
         for r in res.get("results", []) or []:
             u = r.get("url")
             if u and u not in seen:
@@ -37,6 +45,7 @@ def _gather_sources(plan: dict, currency_mode: str, since: str | None) -> list[d
 
     if currency_mode == "latest_research":
         for q in (plan.get("paper_queries") or [])[:2]:
+            events.emit(course_id, "scouting", "mcp", f'paper_search (arXiv) "{q[:60]}"')
             res = tools.paper_search(q, since=since, max_results=3)
             for r in res.get("results", []) or []:
                 u = r.get("url")
@@ -49,9 +58,15 @@ def _gather_sources(plan: dict, currency_mode: str, since: str | None) -> list[d
     for cand in candidates[: _MAX_SOURCES_PER_ROUND * 2]:
         if len([e for e in extracted if e.get("text_chunks")]) >= _MAX_SOURCES_PER_ROUND:
             break
+        events.emit(course_id, "scouting", "scrape",
+                    f"MCP extract [{cand.get('type')}] {cand['url'][:70]}")
         out = router.extract_url(cand["url"], source_type=cand.get("type"))
         if out.get("error") or not out.get("text_chunks"):
+            events.emit(course_id, "scouting", "scrape",
+                        f"  ↳ skipped ({out.get('message','no usable text')[:50]})")
             continue
+        events.emit(course_id, "scouting", "extract",
+                    f"  ↳ extracted {len(out.get('text_chunks', []))} text chunks")
         blob_ref = out.get("_blob_ref")
         figs = router.figures_for(cand["url"], blob_ref)
         extracted.append({
@@ -64,6 +79,7 @@ def _gather_sources(plan: dict, currency_mode: str, since: str | None) -> list[d
 
 
 def _distill(subtopic: dict, plan: dict, sources: list[dict]) -> dict:
+    cid = subtopic.get("course_id")
     material_parts = []
     for i, s in enumerate(sources):
         sid = f"s{i}"
@@ -71,14 +87,20 @@ def _distill(subtopic: dict, plan: dict, sources: list[dict]) -> dict:
         joined = "\n".join(c["text"] for c in s["text_chunks"][:6])
         material_parts.append(f"[{sid}] ({s.get('title') or s['url']}):\n{joined[:3500]}")
     material = "\n\n".join(material_parts) or "(no material extracted)"
+    events.emit(cid, "scouting", "distill",
+                f"distilling Content Package from {len(sources)} sources")
     data, _ = complete_json(
         "course_scout", "You output only JSON.",
         render("scout_distill", subtopic_name=subtopic["name"],
                description=subtopic.get("description", ""),
                required_concepts=plan.get("required_concepts", []), material=material[:14000]),
-        phase="scouting", max_tokens=2500, course_id=subtopic.get("course_id"),
+        phase="scouting", max_tokens=2500, course_id=cid,
     )
-    return data if isinstance(data, dict) else {}
+    data = data if isinstance(data, dict) else {}
+    events.emit(cid, "scouting", "distill",
+                f"  ↳ {len(data.get('key_claims', []))} key claims, "
+                f"{len(data.get('definitions', []))} definitions")
+    return data
 
 
 def scout_subtopic(subtopic: dict, *, currency_mode: str, domain_grounding: dict,
@@ -86,7 +108,7 @@ def scout_subtopic(subtopic: dict, *, currency_mode: str, domain_grounding: dict
     """One scouting round → ContentPackage-shaped dict (+ meta the auditor uses)."""
     domain = domain_grounding.get("domain", "general")
     plan = _plan(subtopic, currency_mode, domain, extra=extra_actions)
-    sources = _gather_sources(plan, currency_mode, since)
+    sources = _gather_sources(plan, currency_mode, since, course_id=subtopic.get("course_id"))
     distilled = _distill(subtopic, plan, sources) if sources else {}
 
     text_chunks, figures = [], []

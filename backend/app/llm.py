@@ -168,3 +168,45 @@ def image_part(data: bytes, mime: str = "image/png") -> dict:
     """Build an OpenAI vision content part from raw image bytes (data: URI)."""
     b64 = base64.standard_b64encode(data).decode("ascii")
     return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+
+
+def web_search(query: str, max_results: int = 5, *, phase: str = "scouting",
+               course_id: str | None = None) -> dict:
+    """High-quality live web search via OpenRouter's built-in web plugin (Exa-backed).
+    Returns {results: [{title, url, snippet}]}. Records real per-call cost to metrics.
+    Raises on failure so callers can fall back to a secondary provider."""
+    import httpx
+
+    spec = get_model("web_search")
+    key = os.getenv(spec.api_key_env)
+    if not key:
+        raise LLMError(f"Missing {spec.api_key_env} for web search")
+    url = spec.base_url.rstrip("/") + "/chat/completions"
+    body = {
+        "model": spec.model,
+        "plugins": [{"id": "web", "max_results": max_results}],
+        "messages": [{"role": "user", "content": f"Search the web for: {query}"}],
+        "max_tokens": 40,
+    }
+    start = time.perf_counter()
+    with trace_span("tool:web_search", model=spec.model, query=query[:80]):
+        resp = httpx.post(url, headers={"Authorization": f"Bearer {key}",
+                                        "HTTP-Referer": "http://localhost:5173",
+                                        "X-Title": "Seekhai_test"}, json=body, timeout=60.0)
+        resp.raise_for_status()
+        data = resp.json()
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    msg = data["choices"][0]["message"]
+    results = []
+    for a in (msg.get("annotations") or []):
+        if a.get("type") == "url_citation":
+            u = a.get("url_citation", {})
+            results.append({"title": u.get("title"), "url": u.get("url"),
+                            "snippet": (u.get("content") or "")[:400]})
+    usage = data.get("usage", {}) or {}
+    # OpenRouter reports actual cost (incl. the Exa search fee) — use it directly.
+    cost = float(usage.get("cost") or 0.0)
+    metrics.record(phase=phase, model=f"{spec.model}+web", tokens_in=usage.get("prompt_tokens", 0),
+                   tokens_out=usage.get("completion_tokens", 0), latency_ms=latency_ms,
+                   cost=cost, course_id=course_id)
+    return {"results": results, "cost": cost}

@@ -69,16 +69,39 @@ def _ddgs_search(query: str, max_results: int = 5) -> list[dict]:
         return []
 
 
-def web_search(query: str, max_results: int = 6, since: str | None = None) -> dict:
-    """Live web search. Merges DuckDuckGo (best-effort, junk-filtered) with the reliable
-    Wikipedia API so AI topics always have solid grounding even when DDG degrades."""
-    results: list[dict] = []
-    seen: set[str] = set()
+def web_search(query: str, max_results: int = 6, since: str | None = None,
+               course_id: str | None = None) -> dict:
+    """Live web search. Primary: OpenRouter's built-in web plugin (Exa-backed) — high
+    quality, on-topic. Falls back to DuckDuckGo (junk-filtered) + Wikipedia if that
+    provider errors, so scouting still works offline-ish."""
+    from app import events
+
+    # primary: real search provider
+    try:
+        from app.llm import web_search as or_search
+
+        out = or_search(query, max_results=max_results, course_id=course_id)
+        results = [r for r in out["results"] if r.get("url")
+                   and not any(j in r["url"].lower() for j in _JUNK)]
+        if results:
+            events.emit(course_id, "scouting", "web_search",
+                        f'web_search (OpenRouter/Exa) "{query[:60]}" → {len(results)} results',
+                        {"provider": "openrouter_web", "results": len(results),
+                         "cost": round(out.get("cost", 0.0), 5)})
+            return {"results": results[:max_results]}
+    except Exception as e:
+        events.emit(course_id, "scouting", "warn",
+                    f"primary web_search failed ({type(e).__name__}); falling back to DDG+Wikipedia")
+
+    # fallback: DDGS + Wikipedia
+    results, seen = [], set()
     for r in _ddgs_search(query, max_results) + _wikipedia_search(query, 3):
         u = r.get("url")
         if u and u not in seen:
             seen.add(u)
             results.append(r)
+    events.emit(course_id, "scouting", "web_search",
+                f'web_search (fallback DDG+Wiki) "{query[:60]}" → {len(results)} results')
     return {"results": results[:max_results]}
 
 

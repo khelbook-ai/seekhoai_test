@@ -9,6 +9,8 @@ const get = (url) => fetch(url).then(j);
 
 export const api = {
   // build
+  listCourses: () => get("/api/courses"),
+  buildEvents: (courseId, after = 0) => get(`/api/courses/${courseId}/events?after=${after}`),
   createCourse: (raw_prompt, raw_role) => post("/api/courses", { raw_prompt, raw_role }),
   clarify: (courseId, answers) => post(`/api/courses/${courseId}/clarify`, { answers }),
   getCourse: (courseId) => get(`/api/courses/${courseId}`),

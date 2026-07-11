@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from app import events
 from app.agents import auditor, cost_reconciliation, scout
 from app.agents.checkers import option, semantic
 from app.agents.generators import content as gen
@@ -126,14 +127,20 @@ def _load_intent(course_id: str) -> tuple[dict, dict]:
 
 
 def _scout_and_audit(st: dict, currency_mode: str, domain_grounding: dict, since: str | None) -> tuple[dict, dict]:
+    cid = st["course_id"]
     cfg = get_settings().section("scouting")
     max_rounds = int(cfg.get("max_scout_rounds", 3))
     package, audit_res, extra = None, {"comprehensive": False, "score": 0.0, "gaps": []}, ""
     for _round in range(max_rounds):
+        events.emit(cid, "scouting", "round", f"scout round {_round + 1}/{max_rounds} for '{st['name']}'")
         package = scout.scout_subtopic(st, currency_mode=currency_mode,
                                        domain_grounding=domain_grounding, since=since,
                                        extra_actions=extra)
+        events.emit(cid, "scouting", "audit", "Scouting Auditor (Claude Sonnet) reviewing Content Package…")
         audit_res = auditor.audit(package, currency_mode=currency_mode)
+        events.emit(cid, "scouting", "audit",
+                    f"  ↳ score {audit_res.get('score')} · comprehensive={audit_res.get('comprehensive')}"
+                    + (f" · gaps: {'; '.join(audit_res.get('gaps', [])[:2])}" if not audit_res.get("comprehensive") else ""))
         if audit_res.get("comprehensive"):
             break
         acts = audit_res.get("recommended_actions", [])
@@ -147,27 +154,37 @@ def _generate_and_check(st: dict, package: dict, intent: dict, domain_grounding:
     specs = gen.plan_interactions(package)
     results: list[dict] = []
 
-    for spec in specs:
+    for idx, spec in enumerate(specs):
         item = None
         checks: list[tuple] = []
         flagged = False
         for attempt in range(max_retries + 1):
+            label = f"{spec['kind'].upper()}{' (definition)' if spec.get('definition') else ''} DL{spec['dl']}"
+            events.emit(course_id, "generation", "generate",
+                        f"generating {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
             if spec["kind"] == "mcq":
                 item = gen.generate_mcq(st, package, intent, spec["dl"],
                                         definition=spec["definition"], course_id=course_id)
             else:
                 item = gen.generate_qa(st, package, intent, spec["dl"], course_id=course_id)
 
+            events.emit(course_id, "checking", "check", "Domain Checker (GLM) reviewing framing…")
             dom = semantic.domain_check(item, st, domain_grounding, course_id)
             if not dom.get("on_domain", True) and attempt < max_retries:
+                events.emit(course_id, "checking", "check", f"  ↳ off-domain → regen ({dom.get('reason','')[:40]})")
                 st = {**st, "description": st["description"] + " | fix: " + (dom.get("regen_hint") or "")}
                 continue
+            events.emit(course_id, "verification", "verify", "Verification (Gemini, independent) checking accuracy…")
             ver = semantic.verify(item, st, package, course_id)
             checks = [("domain", dom), ("verification", ver)]
             if ver.get("verdict") == "fail" and attempt < max_retries:
+                events.emit(course_id, "verification", "verify", f"  ↳ failed → regen ({'; '.join(ver.get('issues', [])[:1])[:40]})")
                 st = {**st, "description": st["description"] + " | fix: " + (ver.get("suggested_fix") or "")}
                 continue
             flagged = (not dom.get("on_domain", True)) or (ver.get("verdict") == "fail")
+            events.emit(course_id, "verification", "verify",
+                        f"  ↳ {label}: domain={'ok' if dom.get('on_domain', True) else 'FAIL'} "
+                        f"verify={ver.get('verdict', 'pass')}" + (" · FLAGGED for review" if flagged else ""))
             break
         item["_checks"] = checks
         item["_flagged"] = flagged
@@ -193,8 +210,11 @@ def run_content_pipeline(course_id: str) -> None:
 
     intent, domain_grounding = _load_intent(course_id)
     subtopics = list_subtopics(course_id)
+    events.emit(course_id, "generation", "start",
+                f"build started · {len(subtopics)} subtopics · currency={currency_mode} "
+                f"· domain='{domain_grounding.get('domain', 'general')}'")
 
-    for st in subtopics:
+    for si, st in enumerate(subtopics, start=1):
         st = dict(st)
         st["subtopic_id"] = str(st["subtopic_id"])
         st["course_id"] = course_id
@@ -202,10 +222,15 @@ def run_content_pipeline(course_id: str) -> None:
         existing = fetchone("SELECT count(*) AS n FROM interactions WHERE subtopic_id = %s",
                             (st["subtopic_id"],))
         if existing and existing["n"] > 0:
+            events.emit(course_id, "generation", "skip", f"[{si}/{len(subtopics)}] '{st['name']}' already built — skipping")
             continue
 
+        events.emit(course_id, "scouting", "subtopic", f"── [{si}/{len(subtopics)}] subtopic: {st['name']} ──")
         package, audit_res = _scout_and_audit(st, currency_mode, domain_grounding, since)
         _persist_sources(st["subtopic_id"], package)
+        if not audit_res.get("comprehensive"):
+            events.emit(course_id, "scouting", "warn",
+                        f"'{st['name']}' marked PARTIALLY SOURCED after {get_settings().section('scouting').get('max_scout_rounds', 3)} rounds")
         execute(
             "UPDATE subtopics SET partially_sourced = %s, audit_score = %s, audit_gaps = %s, "
             "source_manifest = %s WHERE id = %s",
@@ -215,7 +240,15 @@ def run_content_pipeline(course_id: str) -> None:
         )
 
         items = _generate_and_check(st, package, intent, domain_grounding, course_id)
+        events.emit(course_id, "generation", "option_check",
+                    f"Option Checker: {sum(1 for i in items if i['_type']=='mcq')} MCQs — answer-position variety + length balance")
         for ordinal, item in enumerate(items):
             _persist_interaction(st["subtopic_id"], ordinal, item, item.get("_checks", []), package)
+        events.emit(course_id, "persist", "persist",
+                    f"persisted {len(items)} interactions for '{st['name']}'")
 
-    cost_reconciliation.reconcile(course_id, notes="build complete")
+    events.emit(course_id, "cost", "reconcile", "Cost Reconciliation: actual vs estimate…")
+    recon = cost_reconciliation.reconcile(course_id, notes="build complete")
+    events.emit(course_id, "cost", "reconcile",
+                f"  ↳ actual ${recon['actual']:.4f} vs est ${recon['estimated']:.4f} ({recon['delta_pct']}%)")
+    events.emit(course_id, "persist", "done", "✅ build complete")

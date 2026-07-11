@@ -34,6 +34,8 @@ agents:
   diagram_agent:          { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   domain_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   qa_grader:              { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  # live web search — OpenRouter's built-in web plugin (Exa-backed), high quality (05 §2)
+  web_search:             { provider: openrouter, model: z-ai/glm-5.2,           class: search }
   # INDEPENDENT model families (deliberately not GLM) — spec 03 §5b / §10
   scouting_auditor:       { provider: openrouter, model: anthropic/claude-sonnet-5, class: sonnet } # spec 05 §4
   content_verification:   { provider: openrouter, model: google/gemini-2.5-pro,  class: gemini } # spec 03 §10

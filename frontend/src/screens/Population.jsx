@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
+import BuildLog from "../components/BuildLog.jsx";
 
 // Course population / curriculum view (spec 07 §5). Polls while building; shows derived
 // counts, cost estimate vs actual + reason, and per-subtopic detail.
@@ -44,6 +45,9 @@ export default function Population() {
         Status: <strong>{course.status}</strong>
         {building && <span className="spinner"> · scouting the live web, generating, checking &amp; verifying…</span>}
       </p>
+
+      <h2 className="sub">Build log <span className="note">(technical trace — tool use, MCP scraping, checks)</span></h2>
+      <BuildLog courseId={courseId} active={building} />
 
       {t && (
         <>

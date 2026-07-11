@@ -56,6 +56,16 @@ latency/tokens/cost recorded.
 | `web_scrape` | Fetch + clean a page's prose. |
 | `paper_search` | Search arXiv/conference/DOI indexes, date-filterable for "recent". |
 
+**`web_search` must use a real, high-quality search provider — not a scrape-the-first-engine
+hack.** Weak/generic search (e.g. bare DuckDuckGo) returns off-topic junk on acronym-colliding
+queries (e.g. "MCP" → unrelated results), which poisons the whole pipeline. The primary
+backend is a proper AI-grade web search (this build uses **OpenRouter's built-in web search
+plugin, Exa-backed**, reached with the OpenRouter key already used for models); it returns
+on-topic primary sources (official docs, reputable blogs, papers) with real per-call cost that
+is recorded to `generation_metrics`. A keyless fallback (DuckDuckGo + Wikipedia, junk-filtered)
+keeps scouting working if the provider is unavailable. The provider is swappable behind the
+`web_search` tool; agents never change.
+
 ### Fetch
 | Tool | Purpose |
 |------|---------|
@@ -233,3 +243,17 @@ subtopic **and** as course-level totals:
 
 These counts are computed from persisted rows (see `06-data-and-feedback.md §4`) and are the
 tester's at-a-glance measure of how substantial the course is.
+
+---
+
+## 9. Build-event trace (testing observability)
+
+Every meaningful step of the build pipeline emits a **build event** — persisted to
+`build_events` (`06 §1`) so the population page can stream a **live technical log** while a
+background build runs. Emit at least: search provider + query + result count, each MCP
+extractor call and its source URL + chunk count, the Scouting Auditor score and each
+scout-again round, each generated interaction, each Domain/Verification/Option check with its
+verdict (pass / regen / flagged), persistence, and cost reconciliation. Events are phase-tagged
+(`intake|scouting|generation|checking|verification|persist|cost`) and are deliberately
+low-level for the test phase. This is separate from the LangSmith/Phoenix trace (`06 §3`): the
+build-event log is the tester-facing UI stream; observability traces are for offline analysis.

@@ -1,15 +1,29 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 
 // Clarification questions as tappable option chips (spec 07 §3). ≤10, often fewer.
+// Questions come from router state on the first pass, else load from the API so the
+// tester can navigate back to them from the sidebar at any time.
 export default function Clarification() {
   const { courseId } = useParams();
   const nav = useNavigate();
-  const questions = useLocation().state?.questions || [];
+  const stateQs = useLocation().state?.questions;
+  const [questions, setQuestions] = useState(stateQs || []);
   const [answers, setAnswers] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (stateQs && stateQs.length) return;
+    api.getCourse(courseId).then((c) => {
+      const qs = c.clarifications || [];
+      setQuestions(qs);
+      const pre = {};
+      qs.forEach((q) => { if (q.answer) pre[q.ordinal] = q.answer; });
+      setAnswers(pre);
+    }).catch((e) => setErr(e.message));
+  }, [courseId, stateQs]);
 
   async function submit() {
     setErr(null); setBusy(true);
