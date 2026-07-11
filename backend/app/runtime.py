@@ -15,13 +15,16 @@ _PENDING: dict[str, dict] = {}         # session_id -> {qa_id, escalated_from}
 
 
 def _ordered_interactions(course_id: str) -> list[dict]:
+    # MAIN sequence only: follow-up Q&A (role like 'followup_%') are served solely via the
+    # MCQ→Q&A escalation path (spec 04 §4), never in the normal course flow.
     return fetchall(
         """SELECT i.id, i.subtopic_id, i.type, i.dl, i.ordinal, i.question_md,
                   i.content_panel_md, i.diagram_ref, s.name subtopic, s.ordinal s_ord,
                   t.ordinal t_ord
            FROM interactions i JOIN subtopics s ON i.subtopic_id = s.id
            JOIN topics t ON s.topic_id = t.id
-           WHERE t.course_id = %s ORDER BY t.ordinal, s.ordinal, i.ordinal""",
+           WHERE t.course_id = %s AND i.role = 'main'
+           ORDER BY t.ordinal, s.ordinal, i.ordinal""",
         (course_id,),
     )
 
@@ -125,6 +128,84 @@ def _flag_weakness(user_id: str | None, subtopic_id: str) -> None:
                 "VALUES (%s,%s,1, now())", (user_id, subtopic_id))
 
 
+def _session_intent(course_id: str) -> tuple[dict, dict]:
+    row = fetchone(
+        "SELECT ip.orientation, ip.seniority, ip.domain_grounding FROM courses c "
+        "JOIN intent_profiles ip ON ip.user_id = c.user_id WHERE c.id = %s "
+        "ORDER BY ip.created_at DESC LIMIT 1", (course_id,))
+    if not row:
+        return {"orientation": "general", "seniority": "mid"}, {"domain": "general", "must_ground": False}
+    return ({"orientation": row["orientation"], "seniority": row["seniority"]},
+            row["domain_grounding"] or {"domain": "general", "must_ground": False})
+
+
+def _persist_probe(subtopic_id: str, item: dict, role: str) -> str:
+    """Persist a runtime-generated follow-up Q&A (spec 04 §4). Runtime-only writer — kept
+    out of the build pipeline; no diagrams, no build checkers."""
+    import json
+
+    gen = item.get("_gen", {})
+    ordinal = fetchone("SELECT COALESCE(MAX(ordinal),0)+1 n FROM interactions WHERE subtopic_id=%s",
+                       (subtopic_id,))["n"]
+    row = execute(
+        """INSERT INTO interactions
+             (subtopic_id, type, role, dl, ordinal, question_md, content_panel_md, qa_rubric,
+              gen_model, gen_latency_ms, gen_tokens_in, gen_tokens_out)
+           VALUES (%s,'qa',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+        (subtopic_id, role, item.get("_dl", 1), ordinal, item.get("question_md"),
+         item.get("content_panel_md"),
+         json.dumps(item.get("qa_rubric")) if item.get("qa_rubric") else None,
+         gen.get("model"), gen.get("latency_ms"), gen.get("tin"), gen.get("tout")),
+    )
+    iid = str(row["id"])
+    for lvl, htext in enumerate(item.get("hints", [])[:3], start=1):
+        execute("INSERT INTO hints (interaction_id, level, text_md) VALUES (%s,%s,%s)",
+                (iid, lvl, htext))
+    return iid
+
+
+def _start_followup(session_id: str, mcq: dict, course_id: str) -> bool:
+    """After a wrong MCQ, queue the subtopic's pre-generated seed follow-up. If it's already
+    been used this session, generate a root-cause probe from the reserve instead."""
+    seed = fetchone(
+        "SELECT id FROM interactions WHERE subtopic_id = %s AND role = 'followup_seed' "
+        "AND id NOT IN (SELECT interaction_id FROM responses WHERE session_id=%s) LIMIT 1",
+        (mcq["subtopic_id"], session_id))
+    base = {"escalated_from": str(mcq["id"]), "subtopic_id": str(mcq["subtopic_id"]),
+            "base_dl": mcq["dl"], "probe_round": 0}
+    if seed:
+        _PENDING[session_id] = {**base, "qa_id": str(seed["id"])}
+        return True
+    # seed already used → jump straight to a generated probe
+    return _next_probe(session_id, mcq, base, course_id)
+
+
+def _next_probe(session_id: str, it: dict, pend: dict, course_id: str) -> bool:
+    """Generate the next root-cause probe Q&A from the subtopic reserve (no scraping).
+    Returns False when probes are exhausted so the runtime returns to the main sequence."""
+    from app.agents.generators import followup
+    from app.config import get_settings
+
+    nxt = int(pend.get("probe_round", 0)) + 1
+    if nxt > int(get_settings().section("followup").get("max_probe_rounds", 3)):
+        return False
+    subtopic_id = pend["subtopic_id"]
+    row = fetchone("SELECT s.name, s.description, s.reserve FROM subtopics s WHERE s.id = %s",
+                   (subtopic_id,))
+    reserve = (row and row["reserve"]) or {}
+    intent, domain = _session_intent(course_id)
+    st_ctx = {"name": row["name"] if row else "", "description": row["description"] if row else "",
+              "domain_grounding": domain}
+    try:
+        item = followup.generate_probe_followup(st_ctx, reserve, intent, int(pend.get("base_dl", 2)),
+                                                nxt, course_id=None)
+    except Exception:
+        return False
+    qa_id = _persist_probe(subtopic_id, item, "followup_probe")
+    _PENDING[session_id] = {**pend, "qa_id": qa_id, "probe_round": nxt}
+    return True
+
+
 def submit_answer(session_id: str, interaction_id: str, *, selected_label: str | None = None,
                   answer_text: str | None = None) -> dict:
     course_id = _session_course(session_id)
@@ -153,24 +234,22 @@ def submit_answer(session_id: str, interaction_id: str, *, selected_label: str |
         result = {"correct": correct, "correct_label": it["answer_key"], "score_awarded": score}
         if adaptive.is_weakness(interaction_type="mcq", correct=correct, band=None):
             _flag_weakness(user_id, str(it["subtopic_id"]))
-        # escalation: wrong MCQ → same-subtopic Q&A
+        # escalation (spec 04 §4): wrong MCQ → pre-generated seed follow-up Q&A on the
+        # same subtopic. If the seed was already used this session, generate a root-cause
+        # probe from the reserve straight away.
         if not correct:
-            qa = fetchone(
-                "SELECT id FROM interactions WHERE subtopic_id = %s AND type='qa' "
-                "AND id NOT IN (SELECT interaction_id FROM responses WHERE session_id=%s) LIMIT 1",
-                (it["subtopic_id"], session_id))
-            if qa:
-                _PENDING[session_id] = {"qa_id": str(qa["id"]), "escalated_from": interaction_id}
+            if _start_followup(session_id, it, course_id):
                 result["escalated"] = True
     else:  # qa
         grade = qa_grader.grade(dict(it), answer_text or "")
         score = qa_score(dl=it["dl"], hints_used=hints, band=grade["band"])
+        this_round = pend.get("probe_round", 0) if (pend and pend.get("qa_id") == interaction_id) else 0
         execute(
             """INSERT INTO responses (session_id, interaction_id, user_answer, is_correct, band, dl,
-                 hints_used, score_awarded, graded_by, grade_feedback_md, escalated_from)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'qa_grader',%s,%s)""",
+                 hints_used, score_awarded, graded_by, grade_feedback_md, escalated_from, probe_round)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'qa_grader',%s,%s,%s)""",
             (session_id, interaction_id, answer_text, grade["correct"], grade["band"], it["dl"],
-             hints, score, grade["feedback_md"], escalated_from),
+             hints, score, grade["feedback_md"], escalated_from, this_round),
         )
         result = {"correct": grade["correct"], "band": grade["band"],
                   "score_awarded": score, "rubric_hits": grade["rubric_hits"],
@@ -178,8 +257,18 @@ def submit_answer(session_id: str, interaction_id: str, *, selected_label: str |
                   "cached": grade.get("cached", False)}
         if adaptive.is_weakness(interaction_type="qa", correct=grade["correct"], band=grade["band"]):
             _flag_weakness(user_id, str(it["subtopic_id"]))
-        if escalated_from:
-            _PENDING.pop(session_id, None)
+        # Root-cause follow-up loop (spec 04 §4): if this was a follow-up and the learner
+        # is still not fully correct, generate the next root-cause probe from the reserve
+        # (no scraping). On a full answer — or when probes are exhausted — return to the
+        # main sequence (next MCQ).
+        if pend and pend.get("qa_id") == interaction_id:
+            if grade["band"] == "full":
+                _PENDING.pop(session_id, None)
+            elif not _next_probe(session_id, it, pend, course_id):
+                _PENDING.pop(session_id, None)
+            else:
+                result["escalated"] = True
+                result["followup"] = True
 
     running = fetchone("SELECT COALESCE(SUM(score_awarded),0) total FROM responses WHERE session_id=%s",
                        (session_id,))["total"]

@@ -37,3 +37,27 @@ def test_flags_wrong_option_count():
     res = check_and_fix(mcqs, rng=random.Random(1))
     assert res["regen"] == [0]
     assert any("options" in v for v in res["violations"])
+
+
+def test_repairs_five_options_to_four_with_answer_key():
+    # Regression for the "answer was null" bug (content feedback): a generator returned FIVE
+    # options (A-E). The checker must repair to exactly 4 and still set a valid answer_key.
+    mcqs = [_mcq(1, ["w0", "correct", "w2", "w3", "w4"])]
+    res = check_and_fix(mcqs, rng=random.Random(1))
+    m = res["items"][0]
+    assert len(m["options"]) == 4
+    assert m["answer_key"] in ("A", "B", "C", "D")
+    correct = [o for o in m["options"] if o["is_correct"]]
+    assert len(correct) == 1
+    assert correct[0]["label"] == m["answer_key"]
+    assert correct[0]["text"] == "correct"
+
+
+def test_never_leaves_null_answer_key_when_none_flagged():
+    # Generator forgot to flag any correct option: repair must still yield a usable key.
+    mcqs = [{"options": [{"text": t, "is_correct": False} for t in ["a", "b", "c", "d"]],
+             "answer_key": "C"}]
+    res = check_and_fix(mcqs, rng=random.Random(2))
+    m = res["items"][0]
+    assert m["answer_key"] in ("A", "B", "C", "D")
+    assert sum(1 for o in m["options"] if o["is_correct"]) == 1

@@ -31,6 +31,7 @@ class ClarificationQ(BaseModel):
     q: str
     options: list[str] = Field(default_factory=list)
     answer: str | None = None
+    multi_select: bool = False   # true when several options may be chosen (spec 01 §3)
 
 
 class CourseContext(BaseModel):

@@ -12,11 +12,13 @@ Learner prompt: "{raw_prompt}"
 Intent: orientation={orientation}, seniority={seniority}, confidence={confidence}
 Domain: {domain} (must_ground={must_ground})
 
-Questions must be single-select with tappable options phrased for this learner.
+Questions use tappable options phrased for this learner. Set "multi_select": true when the
+question naturally admits several answers at once — e.g. "which areas of recent RL progress
+matter most to you?" where a learner may want several — and false for either/or questions.
 Return ONLY this JSON:
 {{
   "questions": [
-    {{"q": "question text", "options": ["option A", "option B", "option C"]}}
+    {{"q": "question text", "options": ["option A", "option B", "option C"], "multi_select": false}}
   ],
   "residual_ambiguity": 0.0-1.0,
   "assumptions_made": ["what the Architect should assume if some ambiguity remains"]

@@ -21,6 +21,10 @@ adaptivity:                         # spec 04 §5
   promote_streak: 2
   demote_errors: 2
 
+followup:                           # spec 04 §4 — Q&A root-cause escalation
+  max_probe_rounds: 3               # runtime root-cause Q&A after the seed follow-up
+  reserve_extra_sources: 2          # extra sources scouted at build time for the reserve
+
 clarification:                      # spec 01 §3
   max_questions: 10
   clarify_threshold: 0.7

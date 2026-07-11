@@ -57,16 +57,16 @@ def save_clarifications(course_id: str, questions: list) -> None:
     for i, q in enumerate(questions):
         execute(
             """
-            INSERT INTO clarification_qas (course_id, ordinal, question, options, answer)
-            VALUES (%s,%s,%s,%s,%s)
+            INSERT INTO clarification_qas (course_id, ordinal, question, options, answer, multi_select)
+            VALUES (%s,%s,%s,%s,%s,%s)
             """,
-            (course_id, i, q.q, json.dumps(q.options), q.answer),
+            (course_id, i, q.q, json.dumps(q.options), q.answer, bool(getattr(q, "multi_select", False))),
         )
 
 
 def get_clarifications(course_id: str) -> list[dict]:
     return fetchall(
-        "SELECT ordinal, question, options, answer FROM clarification_qas "
+        "SELECT ordinal, question, options, answer, multi_select FROM clarification_qas "
         "WHERE course_id = %s ORDER BY ordinal", (course_id,))
 
 

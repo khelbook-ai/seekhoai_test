@@ -74,14 +74,16 @@ def generate_svg_diagram(what: str, subtopic_name: str, course_id: str | None = 
 
 
 def plan_interactions(package: dict) -> list[dict]:
-    """Decide the MCQ/Q&A mix and DL ladder for a subtopic (04 §1: first = definition MCQ).
+    """Decide the MCQ ladder for a subtopic (04 §1: first = definition MCQ).
+
+    The MAIN learning sequence is MCQ-only: a learner reaches Q&A ONLY as a follow-up
+    after a wrong MCQ (spec 04 §4), so standalone Q&A no longer sit in the main flow.
     Returns a list of {kind, dl, definition} specs of length target_question_count."""
     q = max(1, int(package.get("target_question_count", 4)))
     base_dl = int(package.get("_dl", 2))
     specs = [{"kind": "mcq", "dl": base_dl, "definition": True}]
     for i in range(1, q):
-        # alternate MCQ / Q&A; nudge DL up on later items within the subtopic
-        kind = "qa" if i % 2 == 1 else "mcq"
+        # nudge DL up on later items within the subtopic
         dl = min(3, base_dl + (1 if i >= q - 1 else 0))
-        specs.append({"kind": kind, "dl": dl, "definition": False})
+        specs.append({"kind": "mcq", "dl": dl, "definition": False})
     return specs

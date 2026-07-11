@@ -21,6 +21,7 @@ column is a hint, not a hardcoded ID.
 | 10 | Content Verification | build | **Gemini (independent)** |
 | 11 | Q&A Grader | runtime | strong |
 | 12 | Adaptive Controller | runtime | fast (mostly rules + light judgment) |
+| 12b | Root-Cause Weakness (build) + Follow-up Generator (build+runtime) | build + runtime | fast (map) / strong (generate) |
 
 Agents 1–3 are specified in `01-personas-and-intent.md`; the Scouting Auditor (5b) is detailed
 in `05-content-pipeline-and-tools.md §4`. This file details 0, 4–12.
@@ -314,6 +315,30 @@ and passes control accordingly.
 **Weakness flagging:** increments `weakness_counts[subtopic]` when a learner scores below
 `WEAKNESS_THRESHOLD` (default: wrong MCQ, or Q&A `incorrect`/`partial`). Persists to
 `weaknesses` (see `06`).
+
+---
+
+## 12b. Root-Cause Weakness Agent (build-time reserve) + Follow-up Generator (runtime)
+
+Two closely-related jobs power the MCQ→Q&A root-cause loop (`04 §4`), split so the runtime
+never scrapes:
+
+**Root-Cause Weakness agent (build).** Per subtopic, reads the Content Package and maps the
+**common misconceptions / prerequisite gaps** a learner is likely to hold, and proposes
+**targeted queries** for extra remediation material. Its output plus a small bounded extra
+scout become the subtopic's **reserve** (`05 §10`). Model class: **fast** (light judgment).
+
+```json
+{ "misconceptions": [{"root_cause": "...", "probe_focus": "...", "remediation": "..."}],
+  "prerequisite_gaps": ["..."], "search_queries": ["..."] }
+```
+
+**Follow-up Generator (build + runtime).** Turns one misconception + the reserve into a
+**simple, plain-language follow-up Q&A** — easier than the MCQ (`DL−1`), a short prose answer,
+**no equation-writing**. The **seed** follow-up is pre-generated at build time
+(`role = followup_seed`); **probes** are generated at runtime from the reserve only
+(`role = followup_probe`), one fast LLM call each, **no web/MCP calls**. Model class:
+**strong** (same generator family as `§7c`), but bounded to a single call per probe.
 
 ---
 

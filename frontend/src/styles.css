@@ -187,6 +187,31 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .buildlog .k-warn { color: #ff9a8a; }
 .buildlog .k-done, .buildlog .k-approved, .buildlog .k-start { color: #7CFFB2; font-weight: 600; }
 .buildlog .k-subtopic, .buildlog .k-round { color: #fff; font-weight: 600; }
+.buildlog .k-reserve { color: #c4b5fd; }
+.buildlog .k-persist, .buildlog .k-option_check { color: #a8e06a; }
+.buildlog .ts { display: inline-block; min-width: 74px; color: #55606b; }
+
+/* ---- build progress bar (spec 07 §5) ---- */
+.progress-wrap { margin: 14px 0 4px; }
+.progress-head { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; }
+.progress-bar { height: 12px; background: #eceae6; border-radius: 999px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); transition: width 0.4s ease; }
+
+/* ---- difficulty badge (shown on every question, spec 07 §2) ---- */
+.badge.dl { color: var(--ink); border-color: var(--line); background: #f1f0ec; font-weight: 600; }
+.badge.dl.dl1 { color: var(--correct); border-color: #bfe0cd; background: #f1f8f4; }
+.badge.dl.dl2 { color: #8a6d1f; border-color: #e3cf8f; background: #fbf6e6; }
+.badge.dl.dl3 { color: var(--incorrect); border-color: #e0b3ad; background: #fbf1f0; }
+
+/* ---- content / hint boxes that open at the top of an interaction (spec 07 §2) ---- */
+.panel.box { border-left-width: 4px; }
+.hints-box .hint-rung + .hint-rung { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+.hints-box .hint-rung h3 { margin-top: 0; }
+.followup-note { background: #f1f8f4; border: 1px solid #bfe0cd; border-radius: 8px; padding: 10px 14px; color: var(--ink); margin: 0 0 18px; }
+
+/* KaTeX: keep long display equations scrollable, never overflow the column */
+.md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
 @media (max-width: 720px) {
   .app-shell { flex-direction: column; }
   .sidebar { width: auto; flex: none; height: auto; position: static; border-right: none;

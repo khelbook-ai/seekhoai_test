@@ -36,6 +36,11 @@ clarification questions** — without losing work.
   - **Question text 24–28px**, weight 600 — the question is the largest element on screen.
   - Options 18–20px, generous vertical padding (large tap targets).
   - High contrast (WCAG AA minimum; aim AAA for body).
+- **Math rendering (required):** questions, options, content panels, hints and grader
+  feedback render **LaTeX** — inline `$…$` and block `$$…$$` are typeset (KaTeX) so equations
+  like `$V^\pi(s)$` display properly instead of raw source. Long display equations scroll
+  inside their own container and never break the single-column layout. (Learners are still
+  never asked to *type* equations — `04 §1`.)
 - **Spacing:** generous whitespace, single-column, max content width ~720px so lines stay
   readable. No dense dashboards on the learning screen.
 - **Motion:** minimal. No decorative animation; only subtle state transitions.
@@ -46,20 +51,21 @@ clarification questions** — without losing work.
 
 ```
 ┌────────────────────────────────────────────┐
-│  Course · Subtopic            Score: 24     │   ← quiet header
+│  Subtopic · Difficulty: Medium (DL2)  Score │   ← quiet header, DL on every question
 │                                             │
 │  [ diagram, if the question has one ]       │
 │                                             │
 │  Q:  What is the definition of MCP?         │   ← largest text
 │                                             │
+│  ┌──────────────┐   ┌──────────────┐        │
+│  │   CONTENT    │   │     HINT     │        │   ← AT THE TOP, right under the question
+│  └──────────────┘   └──────────────┘        │
+│  [ opened box: content / hint ladder ]      │   ← a box opens here when tapped
+│                                             │
 │   ( A )  <option text>                      │
 │   ( B )  <option text>                      │   ← big tap targets
 │   ( C )  <option text>                      │
 │   ( D )  <option text>                      │
-│                                             │
-│  ┌──────────────┐   ┌──────────────┐        │
-│  │   CONTENT    │   │     HINT     │        │   ← ALWAYS here, always visible
-│  └──────────────┘   └──────────────┘        │
 │                                             │
 │              [   Submit answer   ]          │
 │                                             │
@@ -67,15 +73,22 @@ clarification questions** — without losing work.
 └────────────────────────────────────────────┘
 ```
 
+**Difficulty (required):** every question — MCQ and Q&A — displays its **difficulty level**
+(DL1 Easy / DL2 Medium / DL3 Hard) in the header as a badge.
+
 **Button placement rules (hard requirements):**
 - **Content** and **Hint** appear on **every** interaction (MCQ and Q&A), in the **same fixed
-  position** — a dedicated action row directly beneath the question/options and **above**
-  Submit. They never move between questions.
+  position** — a dedicated action row **at the top of the interaction, directly beneath the
+  question** (above the options / answer input). They never move between questions.
 - Both are **large, clearly labelled** buttons, not icons or hidden menus.
+- **Tapping either opens a box** in place (content panel, or the hint ladder) — it does not
+  navigate away and does not push the question off-screen.
 - **Hint** shows the current rung count and remaining hints (e.g. "Hint (1 of 3, −1)"), so the
   score cost is visible before tapping.
-- **Content** opens a panel/drawer with that interaction's personalized content; it does not
-  navigate away.
+- **Hint ladder display (required):** revealed hints accumulate in the box with the **newest
+  rung on top** and earlier rungs kept **below** it, so an escalating learner still sees Hint 1
+  after opening Hint 2 or 3 (`04 §2`).
+- **Content** opens a box with that interaction's personalized content.
 - For **Q&A**, the layout is identical except options are replaced by a large multi-line text
   input; Content/Hint stay in the same place. The answer input is **guarded** (`03 §0`): the
   learner's free text is checked/sanitised before it flows into the grader.
@@ -91,8 +104,12 @@ can attach one or more screenshots and tie each to a specific span of their writ
 (select text → "attach image to this note"). The linked text becomes the image caption and both
 are written into the `.md` file inline (see `06 §2`). Support drag-drop and paste for images.
 
-**States:** after submit, show correct/incorrect clearly (accent colour + text). On a wrong
-MCQ, transition smoothly into the escalated Q&A on the same subtopic.
+**States:** after submit, show correct/incorrect clearly (accent colour + text). The advance
+control reads **"Next question"** (not just "Next"), or "Finish course" on the last item. On a
+wrong MCQ, transition smoothly into the escalated follow-up Q&A on the same subtopic (`04 §4`),
+with a short line telling the learner it's a quick follow-up answered in a sentence or two (no
+equations). Subsequent root-cause probes appear the same way until the learner recovers the
+idea or the probe budget is spent, then the next MCQ is shown.
 
 ---
 
@@ -100,7 +117,10 @@ MCQ, transition smoothly into the escalated Q&A on the same subtopic.
 
 - Two big inputs: **"What do you want to learn?"** and **"What's your role?"**
 - After submit, the **clarification questions** appear as **tappable option chips** (≤10, often
-  fewer), one at a time or as a short stack — easy on mobile.
+  fewer), one at a time or as a short stack — easy on mobile. A question flagged
+  `multi_select` (`01 §3`, e.g. *"which areas of recent RL progress matter most to you?"*)
+  lets the learner **toggle several chips**; it's labelled "choose any that apply" and the
+  selected options are submitted together.
 - **Prompt guardrails:** the learn/role inputs are guarded (`03 §0`). On a blocked prompt,
   show a clear, friendly inline reason and keep the input editable — never silently swallow it.
 - Includes both:
@@ -128,11 +148,16 @@ Once building/built, show **course-level totals** at the top and **per-subtopic*
 **Live build log (required, testing phase).** While a course is building, show a **detailed,
 technical, tester-facing build log** that streams what the pipeline is doing in real time —
 **web search / MCP tool use / scraping / extraction**, the Scouting Auditor's score and any
-scout-again rounds, generation of each interaction, and the Domain / Verification / Option
-checks with pass/regen/flag outcomes. It is intentionally low-level (tool names, source URLs,
-model families) because this is a test build. Backed by `build_events` (`06 §1`), polled
-incrementally via `GET /api/courses/{id}/events?after=<id>`. The log remains viewable after the
-build completes.
+scout-again rounds, generation of each interaction, the Domain / Verification / Option checks
+with pass/regen/flag outcomes, and the reserve / seed-follow-up build (`05 §10`). It is
+intentionally low-level (tool names, source URLs, model families) because this is a test build.
+**Each log line is prefixed with a wall-clock timestamp.** Backed by `build_events` (`06 §1`),
+polled incrementally via `GET /api/courses/{id}/events?after=<id>`. The log remains viewable
+after the build completes.
+
+**Build progress (required).** Alongside the log, show an overall **percentage completion**
+with a progress bar and an `X/Y subtopics` count, derived from how many subtopics have
+generated content (`GET …/population → progress`). It reaches 100% when the course is `built`.
 
 **Course-level summary bar:**
 - **# MCQs**, **# Q&A items**, **# illustrations used** (sourced vs generated),

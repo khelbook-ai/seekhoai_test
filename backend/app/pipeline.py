@@ -33,17 +33,22 @@ def _persist_sources(subtopic_id: str, package: dict) -> None:
 
 
 def _persist_interaction(subtopic_id: str, ordinal: int, item: dict,
-                         checks: list[tuple], package: dict) -> str:
+                         checks: list[tuple], package: dict, role: str = "main") -> str:
     gen_meta = item.get("_gen", {})
+    answer_key = item.get("answer_key")
+    if item["_type"] == "mcq" and not answer_key:
+        # HARD invariant (spec 06 §7): an MCQ must never persist a null answer_key, or the
+        # runtime shows "the answer was null". Fall back to the flagged-correct option, else A.
+        answer_key = next((o.get("label") for o in item.get("options", []) if o.get("is_correct")), None) or "A"
     row = execute(
         """INSERT INTO interactions
-             (subtopic_id, type, dl, ordinal, question_md, content_panel_md, qa_rubric,
+             (subtopic_id, type, role, dl, ordinal, question_md, content_panel_md, qa_rubric,
               answer_key, gen_model, gen_latency_ms, gen_tokens_in, gen_tokens_out)
-           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-        (subtopic_id, item["_type"], item["_dl"], ordinal, item.get("question_md"),
+           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+        (subtopic_id, item["_type"], role, item["_dl"], ordinal, item.get("question_md"),
          item.get("content_panel_md"),
          json.dumps(item.get("qa_rubric")) if item.get("qa_rubric") else None,
-         item.get("answer_key"), gen_meta.get("model"), gen_meta.get("latency_ms"),
+         answer_key, gen_meta.get("model"), gen_meta.get("latency_ms"),
          gen_meta.get("tin"), gen_meta.get("tout")),
     )
     interaction_id = str(row["id"])
@@ -198,6 +203,25 @@ def _generate_and_check(st: dict, package: dict, intent: dict, domain_grounding:
     return results
 
 
+# --- follow-up reserve (spec 04 §4, 05 §10) ----------------------------------
+def _build_followups(st: dict, package: dict, intent: dict, domain_grounding: dict,
+                     course_id: str) -> None:
+    """Build the subtopic's runtime reserve and pre-generate its seed follow-up Q&A."""
+    from app.agents.generators import followup
+
+    st_ctx = {**st, "calibrated_dl": package.get("_dl", 2), "domain_grounding": domain_grounding}
+    reserve = followup.build_reserve(st_ctx, package, intent, domain_grounding, course_id)
+    execute("UPDATE subtopics SET reserve = %s WHERE id = %s",
+            (json.dumps(reserve), st["subtopic_id"]))
+    try:
+        seed = followup.generate_seed_followup(st_ctx, package, reserve, intent,
+                                               int(package.get("_dl", 2)), course_id)
+        _persist_interaction(st["subtopic_id"], 0, seed, [], package, role="followup_seed")
+        events.emit(course_id, "persist", "persist", f"  ↳ seed follow-up Q&A ready for '{st['name']}'")
+    except Exception as e:
+        events.emit(course_id, "generation", "warn", f"  ↳ seed follow-up failed ({str(e)[:50]})")
+
+
 # --- top-level ---------------------------------------------------------------
 def run_content_pipeline(course_id: str) -> None:
     course = get_course(course_id)
@@ -246,6 +270,11 @@ def run_content_pipeline(course_id: str) -> None:
             _persist_interaction(st["subtopic_id"], ordinal, item, item.get("_checks", []), package)
         events.emit(course_id, "persist", "persist",
                     f"persisted {len(items)} interactions for '{st['name']}'")
+
+        # Weakness Remediation Reserve + pre-generated seed follow-up (spec 04 §4, 05 §10).
+        # A learner reaches Q&A only after a wrong MCQ; the first follow-up is pre-built and
+        # the reserve backs runtime root-cause probes so we never scrape mid-session.
+        _build_followups(st, package, intent, domain_grounding, course_id)
 
     events.emit(course_id, "cost", "reconcile", "Cost Reconciliation: actual vs estimate…")
     recon = cost_reconciliation.reconcile(course_id, notes="build complete")

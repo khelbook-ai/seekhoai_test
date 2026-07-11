@@ -52,7 +52,8 @@ def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None) -
         save_clarifications(course_id, questions)
         update_course(course_id, status="awaiting_clarification")
         return {"course_id": course_id, "status": "awaiting_clarification",
-                "questions": [{"ordinal": i, "q": q.q, "options": q.options}
+                "questions": [{"ordinal": i, "q": q.q, "options": q.options,
+                               "multi_select": q.multi_select}
                               for i, q in enumerate(questions)]}
 
     # no clarification needed → straight to curriculum + cost

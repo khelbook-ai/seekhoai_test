@@ -253,7 +253,35 @@ Every meaningful step of the build pipeline emits a **build event** — persiste
 background build runs. Emit at least: search provider + query + result count, each MCP
 extractor call and its source URL + chunk count, the Scouting Auditor score and each
 scout-again round, each generated interaction, each Domain/Verification/Option check with its
-verdict (pass / regen / flagged), persistence, and cost reconciliation. Events are phase-tagged
+verdict (pass / regen / flagged), the reserve/seed-follow-up build (`§10`), persistence, and
+cost reconciliation. Events are phase-tagged
 (`intake|scouting|generation|checking|verification|persist|cost`) and are deliberately
-low-level for the test phase. This is separate from the LangSmith/Phoenix trace (`06 §3`): the
+low-level for the test phase. Each event carries a **timestamp** rendered in the UI (`07 §5`).
+This is separate from the LangSmith/Phoenix trace (`06 §3`): the
 build-event log is the tester-facing UI stream; observability traces are for offline analysis.
+
+---
+
+## 10. Weakness Remediation Reserve (build-time backup for runtime probes)
+
+A learner reaches Q&A only after a wrong MCQ, and the follow-up loop (`04 §4`) may ask
+several **root-cause probes** to locate the misunderstanding. Generating those probes must be
+**fast**, so the runtime is **forbidden from scraping the web / calling MCP tools**
+mid-session. Instead, the pipeline prepares a **reserve** for each subtopic **at build time**:
+
+1. **Root-Cause Weakness agent** (`03 §12b`) reads the subtopic's Content Package and
+   enumerates the **common misconceptions** and **prerequisite gaps** a learner is most likely
+   to have — the specific wrong mental models that cause a wrong answer — plus a few **targeted
+   search queries** for *extra* remediation material (analogies, worked intuition, prerequisite
+   refreshers) that may not be in the main package.
+2. Those queries drive a **small, bounded extra scout** (default `reserve_extra_sources = 2`),
+   reusing the same discovery/extraction tools. This is **best-effort**: if search is
+   unavailable, the misconception map alone is enough.
+3. The result is stored as the subtopic's **`reserve`** (`06 §1`): `{misconceptions[],
+   prerequisite_gaps[], extra_snippets[], package_digest}`.
+4. The pipeline **pre-generates the seed follow-up Q&A** (the first follow-up shown, `04 §4`)
+   from the reserve and persists it with `role = followup_seed`.
+
+At runtime, each root-cause probe is generated from **this reserve only** (one LLM call,
+`role = followup_probe`). This is what makes the multi-question root-cause diagnosis possible
+without the latency of live scouting.

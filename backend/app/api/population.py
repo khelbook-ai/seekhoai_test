@@ -75,9 +75,20 @@ def population(course_id: str) -> dict:
                          "published": s["published"].isoformat() if s["published"] else None} for s in ssrc],
         })
 
+    # Build progress (spec 07 §5): subtopics with generated content vs total.
+    total_subs = len(subs)
+    built_subs = fetchone(
+        """SELECT count(DISTINCT s.id) n FROM subtopics s JOIN topics t ON s.topic_id = t.id
+           JOIN interactions i ON i.subtopic_id = s.id AND i.role = 'main'
+           WHERE t.course_id = %s""", (course_id,))["n"]
+    progress_pct = round(100 * built_subs / total_subs) if total_subs else (100 if course["status"] == "built" else 0)
+    if course["status"] == "built":
+        progress_pct = 100
+
     est = course.get("cost_estimate") or {}
     return {
         "course_id": course_id, "title": course["title"], "status": course["status"],
+        "progress": {"pct": progress_pct, "built_subtopics": built_subs, "total_subtopics": total_subs},
         "totals": {
             "mcqs": mcq, "qa": qa,
             "illustrations": {"total": sum(diagrams.values()),

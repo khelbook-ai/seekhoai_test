@@ -93,8 +93,12 @@ resolved.
   overview vs staying current), and time budget.
 - It generates the **smallest set** of questions that maximally reduces ambiguity, ranked
   by information gain. It stops early once residual ambiguity is below `AMBIGUITY_FLOOR`.
-- Questions are **single-select or short-answer**, phrased for the learner's orientation,
-  and rendered as tappable options in the UI (see `07-frontend-ui.md`).
+- Questions are **single-select, multi-select, or short-answer**, phrased for the learner's
+  orientation, and rendered as tappable options in the UI (see `07-frontend-ui.md`). A question
+  sets **`multi_select: true`** when it naturally admits several answers at once — e.g. *"which
+  areas of recent RL progress matter most to you?"* (RLHF / offline & model-based / multi-agent
+  / broad survey) — where forcing one choice would lose real signal. Either/or questions stay
+  single-select. Multi-select answers are stored as the joined selection (`06 §1`).
 - Hard cap: **10**. Never exceed it even if ambiguity remains — proceed and let the
   Course Architect make reasonable assumptions, recording them.
 
@@ -111,7 +115,7 @@ resolved.
 ### Output contract
 ```json
 {
-  "questions_asked": [{"q": "...", "options": ["..."], "answer": "..."}],
+  "questions_asked": [{"q": "...", "options": ["..."], "multi_select": false, "answer": "..."}],
   "residual_ambiguity": 0.0,
   "assumptions_made": ["if capped early, what the Architect should assume"]
 }

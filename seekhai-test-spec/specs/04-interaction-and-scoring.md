@@ -17,9 +17,19 @@ and hints exist only to help complete interactions.
 ### Q&A
 - Free-text response, graded by the Q&A Grader against a rubric.
 - Question may include a diagram.
-- Used both as standalone items and as the **escalation** after a wrong MCQ.
+- **Q&A is a follow-up, not a main-sequence item.** A learner reaches Q&A **only** as the
+  **escalation** after a wrong MCQ (§4). The main learning sequence is MCQ-only; standalone
+  Q&A are not interleaved into it.
+- **Follow-ups must be simple.** The learner is already struggling, so a follow-up is
+  **easier** than the MCQ it follows (generated at `DL−1`), asks for a **short prose answer**
+  (one or two sentences), and **never asks the learner to write equations or notation** —
+  they can't type math comfortably on this screen (content-feedback finding, `06 §7`). Math
+  in the *question* is rendered (LaTeX, `07 §1`); the *answer* stays plain-language.
 
 **Diagram rule (both types):** diagrams appear **in questions, never in answer choices.**
+
+**Difficulty visibility (required):** every question shows its **difficulty level** (DL1
+Easy / DL2 Medium / DL3 Hard) to the learner, on both MCQ and Q&A (`07 §2`).
 
 ---
 
@@ -42,6 +52,11 @@ Placement of these two buttons is a **primary UX requirement** — see `07-front
 | Hint 3 | Reveals the correct answer + brief why | −1 |
 
 Hints are pre-generated at build time and simply served at runtime.
+
+**Display order (required):** hints are revealed one rung at a time, but **all revealed rungs
+stay on screen**. The **most recently revealed** rung shows **first (on top)**, with earlier
+rungs kept **below** it — so tapping for Hint 2 shows Hint 2 above Hint 1, Hint 3 above both,
+etc. The learner never loses access to an earlier hint after escalating (`07 §2`).
 
 ---
 
@@ -74,7 +89,12 @@ item_score = 0                                          # if answered incorrectl
 
 ---
 
-## 4. MCQ → Q&A escalation
+## 4. MCQ → Q&A escalation (root-cause follow-up loop)
+
+A wrong MCQ triggers a **diagnostic follow-up loop** whose goal is to find the **root cause**
+of the misunderstanding, not just score a second question. It is designed so the learner can
+recover the concept in **plain language**, and so the runtime **never scrapes the web**
+mid-session (see the build-time reserve, `05 §10`).
 
 ```mermaid
 sequenceDiagram
@@ -83,20 +103,36 @@ sequenceDiagram
   participant G as Q&A Grader
   L->>E: submit MCQ answer
   alt correct
-    E->>E: item_score = DL*2 - hints; advance
+    E->>E: item_score = DL*2 - hints; advance to next MCQ
   else wrong
     E->>E: MCQ item_score = 0
-    E->>L: serve Q&A on SAME subtopic (diagram if useful)
-    L->>E: submit free-text answer
+    E->>L: serve PRE-GENERATED seed follow-up Q&A (same subtopic, DL-1, plain-language)
+    L->>E: submit short free-text answer
     E->>G: grade against rubric
-    G-->>E: band + feedback
-    E->>E: qa_item_score per formula
-    E->>E: flag weakness on this subtopic
+    alt full
+      E->>E: score it; clear follow-up; advance to next MCQ
+    else partial / incorrect
+      E->>E: flag weakness; generate NEXT root-cause probe from the RESERVE (no scraping)
+      E->>L: serve probe (targets the specific misconception)
+      note over E,L: loop up to MAX_PROBE_ROUNDS, then return to the main sequence
+    end
   end
 ```
 
-The escalated Q&A is on the **same subtopic** as the missed MCQ and reuses the same hint/
-content affordances.
+Rules:
+- The **first** follow-up is **pre-generated at build time** (the *seed follow-up*, `05 §10`)
+  so it appears instantly.
+- Each subsequent **root-cause probe** is generated **at runtime from the subtopic's
+  reserve** — a single fast LLM call, **no web search / MCP / scraping** (that would be far
+  too slow inside a session). Probes rotate through the misconceptions the Root-Cause
+  Weakness agent mapped at build time.
+- The loop is bounded by **`MAX_PROBE_ROUNDS`** (default 3, in config). A **full** answer at
+  any point clears the follow-up and returns to the next **main MCQ**; exhausting the rounds
+  also returns to the main sequence (with the weakness recorded).
+- Every follow-up is on the **same subtopic** as the missed MCQ, is **simpler** than it, and
+  reuses the same hint/content affordances. Follow-ups are stored as interactions with
+  `role in {followup_seed, followup_probe}` and never appear in the main MCQ sequence
+  (`06 §1`).
 
 ---
 
@@ -150,6 +186,9 @@ scoring:
 adaptivity:
   promote_streak: 2
   demote_errors: 2
+followup:                     # MCQ→Q&A root-cause loop (§4)
+  max_probe_rounds: 3         # runtime probes after the pre-generated seed follow-up
+  reserve_extra_sources: 2    # extra sources scouted at build time for the reserve (05 §10)
 weakness:
   threshold: "wrong_mcq_or_qa_below_full"
 clarification:

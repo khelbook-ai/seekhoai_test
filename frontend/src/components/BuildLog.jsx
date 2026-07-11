@@ -34,10 +34,19 @@ export default function BuildLog({ courseId, active }) {
     <div className="buildlog" ref={box} aria-label="build log" aria-live="polite">
       {lines.map((e) => (
         <div className="ln" key={e.id}>
+          <span className="ts">{fmtTime(e.at)}</span>
           <span className="ph">{e.phase}</span>
           <span className={"k-" + e.kind}>{e.message}</span>
         </div>
       ))}
     </div>
   );
+}
+
+// Local wall-clock timestamp for each build event (spec 07 §5).
+function fmtTime(iso) {
+  if (!iso) return "--:--:--";
+  const d = new Date(iso);
+  if (isNaN(d)) return "--:--:--";
+  return d.toLocaleTimeString([], { hour12: false });
 }

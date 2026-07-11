@@ -53,7 +53,8 @@ courses(
 
 clarification_qas(
   id uuid pk, course_id uuid fk, ordinal int,
-  question text, options jsonb, answer text
+  question text, options jsonb, answer text,
+  multi_select bool default false                          -- question accepts several answers (01 §3)
 )
 
 topics(
@@ -63,7 +64,8 @@ topics(
 
 subtopics(
   id uuid pk, topic_id uuid fk, name text, description text,
-  ordinal int, target_question_count int, source_manifest jsonb
+  ordinal int, target_question_count int, source_manifest jsonb,
+  reserve jsonb                                            -- weakness-remediation reserve (05 §10)
 )
 
 sources(
@@ -74,14 +76,17 @@ sources(
 -- Generated content ----------------------------------------------------------
 interactions(
   id uuid pk, subtopic_id uuid fk, type text,             -- mcq|qa
+  role text default 'main',                               -- main | followup_seed | followup_probe (04 §4)
   dl int, ordinal int,
   question_md text, diagram_ref uuid,                     -- fk to blobs.id, nullable
   content_panel_md text,                                  -- personalized content
   qa_rubric jsonb,                                         -- for qa items
-  answer_key text,                                         -- for mcq items
+  answer_key text,                                         -- for mcq items — NEVER null (see §7)
   gen_model text, gen_latency_ms int,                     -- generation SPEED capture
   gen_tokens_in int, gen_tokens_out int, created_at timestamptz
 )
+-- `role` keeps follow-up Q&A out of the main MCQ sequence; the runtime serves them only
+-- through the escalation path (04 §4). Only `role='main'` rows form the course flow.
 
 mcq_options(
   id uuid pk, interaction_id uuid fk, label char,          -- A|B|C|D
@@ -118,6 +123,7 @@ responses(
   hints_used int, score_awarded int,
   graded_by text, grade_feedback_md text,
   escalated_from uuid,                                      -- the MCQ this QA followed, nullable
+  probe_round int default 0,                                -- 0 = seed follow-up, 1..N = root-cause probes (04 §4)
   responded_at timestamptz
 )
 
@@ -193,6 +199,9 @@ generation_metrics(
 | Estimated cost | `courses.cost_estimate` |
 | **Actual cost + delta + reason** | `courses.cost_actual`, `cost_delta_abs/pct`, `cost_reconciliation` |
 | Guardrail decisions | `guardrail_events` |
+| Follow-up role / probe round | `interactions.role`, `responses.probe_round` |
+| Weakness-remediation reserve | `subtopics.reserve` |
+| Multi-select clarification answers | `clarification_qas.multi_select` + joined `answer` |
 
 ---
 
@@ -342,3 +351,23 @@ without regenerating anything (no token spend).**
 **iterating on UX/testing must never trigger a rebuild.** A rebuild happens only on an explicit
 "rebuild course" action (e.g. after curriculum changes), and even then only changed subtopics
 regenerate (idempotent regeneration, `02 §5`).
+
+---
+
+## 7. MCQ integrity invariant (content-feedback finding)
+
+A tester reported an MCQ that showed **five** options (A–E) and, after answering, said *"the
+answer was null."* Root cause: a generator drifted from the 4-option contract, and because the
+correct-answer position could not be resolved the persisted `answer_key` was `null`, making the
+item **unanswerable**. This must be structurally impossible:
+
+- **Every persisted MCQ has exactly 4 options and a non-null `answer_key`.** The Option Checker
+  (`03 §8`, `05 §7`) **repairs** structural drift deterministically before persistence —
+  trimming extra options down to the flagged-correct one plus three distractors, padding when
+  short, and always electing exactly one correct option — and persistence applies a final
+  guard so a `null` `answer_key` can never be written.
+- This is a hard invariant, enforced in code and covered by a regression test, not a
+  best-effort check.
+
+Content feedback (the `.md` tree, `§2`) is the primary signal for finding such defects; each
+finding should map to either a spec change or an enforced invariant like this one.

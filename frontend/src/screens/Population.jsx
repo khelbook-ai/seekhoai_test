@@ -37,6 +37,7 @@ export default function Population() {
   const building = course.status === "building";
   const t = pop?.totals;
   const cost = pop?.cost;
+  const prog = pop?.progress;
 
   return (
     <div className="wrap">
@@ -45,6 +46,16 @@ export default function Population() {
         Status: <strong>{course.status}</strong>
         {building && <span className="spinner"> · scouting the live web, generating, checking &amp; verifying…</span>}
       </p>
+
+      {prog && (course.status === "building" || course.status === "built") && (
+        <div className="progress-wrap">
+          <div className="progress-head">
+            <span>Build progress</span>
+            <span className="mono">{prog.pct}% · {prog.built_subtopics}/{prog.total_subtopics} subtopics</span>
+          </div>
+          <div className="progress-bar"><div className="progress-fill" style={{ width: `${prog.pct}%` }} /></div>
+        </div>
+      )}
 
       <h2 className="sub">Build log <span className="note">(technical trace — tool use, MCP scraping, checks)</span></h2>
       <BuildLog courseId={courseId} active={building} />
