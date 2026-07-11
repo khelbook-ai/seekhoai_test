@@ -37,6 +37,36 @@ def create_session(req: CreateSession) -> dict:
         raise HTTPException(404, "course not found")
 
 
+class OpenSession(BaseModel):
+    user_id: str | None = None
+
+
+@router.post("/courses/{course_id}/open")
+def open_session(course_id: str, req: OpenSession) -> dict:
+    """Resume the learner's session for this course (or create one) — progress and score
+    survive navigating away (spec 06 §6, 07 §2)."""
+    try:
+        return runtime.open_session(course_id, req.user_id)
+    except KeyError:
+        raise HTTPException(404, "course not found")
+
+
+@router.get("/sessions/{session_id}/map")
+def session_map(session_id: str) -> dict:
+    try:
+        return runtime.session_map(session_id)
+    except KeyError:
+        raise HTTPException(404, "session not found")
+
+
+@router.get("/sessions/{session_id}/review/{interaction_id}")
+def review(session_id: str, interaction_id: str) -> dict:
+    try:
+        return runtime.review_interaction(session_id, interaction_id)
+    except KeyError:
+        raise HTTPException(404, "interaction not found")
+
+
 @router.get("/sessions/{session_id}/interaction")
 def current_interaction(session_id: str) -> dict:
     try:

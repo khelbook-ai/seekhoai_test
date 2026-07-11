@@ -22,6 +22,7 @@ column is a hint, not a hardcoded ID.
 | 11 | Q&A Grader | runtime | strong |
 | 12 | Adaptive Controller | runtime | fast (mostly rules + light judgment) |
 | 12b | Root-Cause Weakness (build) + Follow-up Generator (build+runtime) | build + runtime | fast (map) / strong (generate) |
+| 13 | Personalization (per-learner, cross-course) | build + post-session | fast |
 
 Agents 1–3 are specified in `01-personas-and-intent.md`; the Scouting Auditor (5b) is detailed
 in `05-content-pipeline-and-tools.md §4`. This file details 0, 4–12.
@@ -339,6 +340,39 @@ scout become the subtopic's **reserve** (`05 §10`). Model class: **fast** (ligh
 (`role = followup_seed`); **probes** are generated at runtime from the reserve only
 (`role = followup_probe`), one fast LLM call each, **no web/MCP calls**. Model class:
 **strong** (same generator family as `§7c`), but bounded to a single call per probe.
+
+---
+
+## 13. Personalization Agent (per-learner, cross-course)
+
+A learner's identity (name-only signup, `01 §5`) is the key to **everything they've done**.
+This agent distills that history into a reusable **profile** so each new course is tuned to
+this specific learner — not a generic persona.
+
+**Inputs (deterministic signals):** across *all* the learner's sessions — attempts, accuracy,
+average hints used, their most-missed subtopics (weaknesses), and their past course titles.
+
+**Output (profile):**
+```json
+{
+  "summary_md": "2-4 sentences: their level, consistent strengths, recurring struggles",
+  "directives": {
+    "emphasize_subtopics": ["reinforce with extra scaffolding / review"],
+    "can_accelerate": ["mastered — go harder / skip basics"],
+    "preferred_difficulty_bias": "easier|balanced|harder",
+    "framing_notes": "recurring framing that helps this learner"
+  },
+  "signals": { "attempts": 0, "accuracy_pct": 0, "avg_hints": 0.0, "weak_areas": [], "past_courses": [] }
+}
+```
+
+**When it runs:** (a) **before a build** — `context_for_build(user_id)` injects the profile
+into `CourseContext.personalization`, which the **Course Architect** (`§4`) and generators use
+to bias difficulty, add scaffolding on known weak areas, and skip mastered basics; (b) **after
+a session completes** — the profile is refreshed from the updated history. Persisted in
+`user_profiles` (`06 §1`). Model class: **fast**. **Degrades gracefully**: a brand-new learner
+yields an empty profile (no change to default behaviour); any LLM failure falls back to the
+deterministic signals alone.
 
 ---
 

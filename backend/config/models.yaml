@@ -24,6 +24,7 @@ agents:
   cost_reconciliation:    { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
   option_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
   adaptive_controller:    { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
+  personalization:        { provider: openrouter, model: z-ai/glm-5.2,           class: fast }
   # strong reasoning + generation (spec 03: "strong" class) — GLM family
   course_architect:       { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   course_scout:           { provider: openrouter, model: z-ai/glm-5.2,           class: strong }

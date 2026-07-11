@@ -10,6 +10,7 @@ export default function Population() {
   const nav = useNavigate();
   const [course, setCourse] = useState(null);
   const [pop, setPop] = useState(null);
+  const [illus, setIllus] = useState([]);
   const [err, setErr] = useState(null);
   const timer = useRef(null);
 
@@ -19,6 +20,7 @@ export default function Population() {
       setCourse(c);
       if (["built", "building", "failed"].includes(c.status)) {
         setPop(await api.population(courseId));
+        api.illustrations(courseId).then((d) => setIllus(d.illustrations || [])).catch(() => {});
       }
       if (c.status !== "building" && timer.current) { clearInterval(timer.current); timer.current = null; }
     } catch (e) { setErr(e.message); }
@@ -55,6 +57,22 @@ export default function Population() {
           </div>
           <div className="progress-bar"><div className="progress-fill" style={{ width: `${prog.pct}%` }} /></div>
         </div>
+      )}
+
+      {illus.length > 0 && (
+        <>
+          <h2 className="sub">Illustrations in this course</h2>
+          <div className="gallery">
+            {illus.map((im, i) => (
+              <figure className="gcard" key={i}>
+                <img src={`/api/blobs/${im.blob_id}`} alt={im.caption || "illustration"} loading="lazy" />
+                <figcaption>{im.subtopic || im.kind}
+                  <span className={"badge " + (im.provenance === "sourced" ? "" : "warn")}>{im.provenance}</span>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </>
       )}
 
       <h2 className="sub">Build log <span className="note">(technical trace — tool use, MCP scraping, checks)</span></h2>

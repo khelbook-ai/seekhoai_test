@@ -28,7 +28,15 @@ blobs(
 ```sql
 -- Users & persona ------------------------------------------------------------
 users(
-  id uuid pk, role_raw text, created_at timestamptz
+  id uuid pk, name text, role_raw text, created_at timestamptz   -- name-only signup (01 §5)
+)
+
+-- Per-user, cross-course learning profile maintained by the Personalization agent (03 §13).
+user_profiles(
+  id uuid pk, user_id uuid fk unique,
+  summary_md text,                                       -- "who this learner is"
+  directives jsonb, signals jsonb,                       -- tuning hints + derived stats
+  updated_at timestamptz
 )
 
 intent_profiles(
@@ -48,6 +56,7 @@ courses(
   cost_actual numeric,                                   -- real cost incurred (reconciliation)
   cost_delta_abs numeric, cost_delta_pct numeric,        -- actual - estimate
   cost_reconciliation jsonb,                             -- drivers + reason for delta
+  cost_md_path text,                                     -- path to the cost-delta .md (§5)
   status text, created_at timestamptz
 )
 
@@ -83,7 +92,19 @@ interactions(
   qa_rubric jsonb,                                         -- for qa items
   answer_key text,                                         -- for mcq items — NEVER null (see §7)
   gen_model text, gen_latency_ms int,                     -- generation SPEED capture
-  gen_tokens_in int, gen_tokens_out int, created_at timestamptz
+  gen_tokens_in int, gen_tokens_out int,
+  reused_from uuid,                                        -- library origin if cloned (05 §11)
+  created_at timestamptz
+)
+
+-- Content-reuse library: registry of built subtopics so similar future courses can reuse
+-- their generated content instead of regenerating (05 §11).
+content_library(
+  id uuid pk, subtopic_name text, subtopic_norm text, topic_norm text,
+  domain text, currency_mode text,
+  source_subtopic_id uuid fk, source_course_id uuid fk,
+  dl int, mcq_count int, qa_count int, illustration_count int,
+  keywords jsonb, created_at timestamptz
 )
 -- `role` keeps follow-up Q&A out of the main MCQ sequence; the runtime serves them only
 -- through the escalation path (04 §4). Only `role='main'` rows form the course flow.
@@ -101,7 +122,8 @@ hints(
 diagrams(
   id uuid pk, interaction_id uuid fk, blob_id uuid fk,     -- fk to blobs.id
   provenance text,                                          -- sourced|generated
-  source_url text, license_hint text
+  source_url text, license_hint text,
+  kind text, caption text, keywords jsonb, subtopic_name text  -- search metadata (05 §6)
 )
 
 -- Checks & verification ------------------------------------------------------
@@ -202,6 +224,10 @@ generation_metrics(
 | Follow-up role / probe round | `interactions.role`, `responses.probe_round` |
 | Weakness-remediation reserve | `subtopics.reserve` |
 | Multi-select clarification answers | `clarification_qas.multi_select` + joined `answer` |
+| Learner identity + profile | `users.name`, `user_profiles` |
+| Reused content provenance | `interactions.reused_from`, `content_library` |
+| Illustration search metadata | `diagrams.kind/caption/keywords/subtopic_name` |
+| Cost-delta reason file | `courses.cost_md_path` (+ `./data/cost/*.md`) |
 
 ---
 
@@ -321,6 +347,14 @@ Because every agent/tool call already writes to `generation_metrics`, actual cos
 aggregation, not separate bookkeeping. The curriculum page shows estimate, actual, and delta
 side by side with the reason.
 
+**Cost-delta `.md` file (required).** In addition to the DB row, the reconciler writes a
+human-readable **`.md`** under `./data/cost/<course_slug>-<id8>.md` (`courses.cost_md_path`)
+capturing the reason **with context**: which course, estimated vs actual + delta, the per-phase
+drivers/summary, and *how much actually ran* — web searches, scrapes, extractions, scout-again
+rounds, generations, checks, reserve builds, sources used, subtopics built, interactions reused
+from the library, and a token+cost-by-phase table. This makes each build's economics auditable
+outside the app.
+
 ---
 
 ## 6. Session durability & token-free replay (testing iteration)
@@ -342,6 +376,13 @@ without regenerating anything (no token spend).**
 - **Sessions are checkpointed.** `sessions` + `responses` capture every step; the LangGraph
   session graph uses the Postgres checkpointer so an interrupted session **resumes at the exact
   step** after a restart.
+- **Resume, never reset (required).** Opening a course's Learn screen **resumes the learner's
+  most recent session** for that course (scoped by `user_id`) instead of creating a new one —
+  so navigating away and back preserves both the position **and the running score**. A new
+  session is created only when none exists. Creating a fresh session each visit (which silently
+  zeroed the score) is a bug this rule exists to prevent. An **already-answered question is
+  never re-scored**: submitting it again returns the existing state, and completed questions
+  are viewable **read-only** (`07 §2`).
 - **"Restart with content" action.** From any application-feedback context, a tester can
   restart the app / relaunch a session bound to the same `course_id` (and optionally the same
   `session_id` to resume, or a fresh session over the same built content). Either way, the

@@ -216,6 +216,10 @@ Real paper figures can therefore be attached to questions, with provenance recor
   (`sourced` + source_url + license_hint, or `generated`).
 - Diagrams attach to **questions only**, never to MCQ options.
 - Stored as blobs in local Postgres; interactions reference `diagram_ref`.
+- **Search metadata (required):** each diagram stores `kind` (diagram/chart/figure/schematic),
+  `caption`, `keywords` (the subtopic's required concepts) and `subtopic_name` so illustrations
+  are easy to find and reuse (`06 §1`). This also powers the "illustrations in this course"
+  gallery shown early to make a course feel substantial (`07 §5`).
 
 ---
 
@@ -285,3 +289,26 @@ mid-session. Instead, the pipeline prepares a **reserve** for each subtopic **at
 At runtime, each root-cause probe is generated from **this reserve only** (one LLM call,
 `role = followup_probe`). This is what makes the multi-question root-cause diagnosis possible
 without the latency of live scouting.
+
+---
+
+## 11. Content-reuse library
+
+All generated content is stored and **reused across courses** so we don't pay to re-scout and
+re-generate the same material. Every built subtopic is registered in `content_library` (`06
+§1`) with its normalized name, topic, domain, difficulty, counts and **searchable keywords**
+(its required/covered concepts and definition terms); its interactions, options, hints and
+diagrams stay in the normal tables and are addressed by the library entry.
+
+**Reuse happens after scouting** (as requested): for each subtopic the pipeline scouts as
+normal, then calls `find_reusable(course, subtopic, domain, required_concepts)`. The match is
+**conservative** — same normalized subtopic name **and** same domain, from a **different**
+course, with concept overlap when scouted concepts are available — so we never splice in a
+same-named but differently-scoped subtopic. On a hit, the persisted content is **cloned** into
+the new subtopic (new ids, `interactions.reused_from` records provenance), including the
+diagrams, the weakness reserve and the seed follow-up, and **generation + all checkers are
+skipped** for that subtopic. This skips the most expensive ~60% of a build.
+
+The build log marks reused subtopics (`♻ reused …`), the population page can show how many
+interactions were reused, and the cost-reconciliation `.md` records the reuse count (`06 §5`).
+Illustrations carry metadata (`§6`) so figures are independently searchable/reusable too.

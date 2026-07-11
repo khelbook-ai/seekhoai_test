@@ -17,7 +17,7 @@ function courseHref(id, stage) {
     : `/course/${id}`;
 }
 
-export default function Sidebar() {
+export default function Sidebar({ user, onSignOut }) {
   const nav = useNavigate();
   const loc = useLocation();
   const [courses, setCourses] = useState([]);
@@ -47,6 +47,12 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand" onClick={() => nav("/")}>Seekhai</div>
+      {user && (
+        <div className="whoami">
+          <span>👤 {user.name}</span>
+          <button className="link" onClick={onSignOut}>switch</button>
+        </div>
+      )}
       <button className="newbtn" onClick={() => nav("/")}>+ New course</button>
 
       <div className="sec">Your courses</div>
@@ -61,7 +67,7 @@ export default function Sidebar() {
           </div>
           {c.course_id === activeId && (
             <div className="stages">
-              <Stage to="clarify" label="Questions" enabled={pastIntake || st === "awaiting_clarification"}
+              <Stage to="clarify" label="Student Input" enabled={pastIntake || st === "awaiting_clarification"}
                 here={loc.pathname.endsWith("/clarify")} />
               <Stage to="cost" label="Cost & curriculum" enabled={!!active && st !== "intake" && st !== "awaiting_clarification"}
                 here={loc.pathname.endsWith("/cost")} />

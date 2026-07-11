@@ -76,9 +76,11 @@ def build_course_context(
     *, user_id: str | None, raw_prompt: str, raw_role: str,
     intent: IntentProfile, domain: DomainGrounding,
     clarifications: list[ClarificationQ], assumptions: list[str],
+    personalization: dict | None = None,
 ) -> CourseContext:
     return CourseContext(
         user_id=user_id, raw_prompt=raw_prompt, raw_role=raw_role,
         intent=intent, domain_grounding=domain, clarifications=clarifications,
         currency_mode=infer_currency_mode(clarifications), assumptions=assumptions,
+        personalization=personalization or {},
     )

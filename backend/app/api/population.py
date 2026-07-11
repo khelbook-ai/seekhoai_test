@@ -16,6 +16,22 @@ def _counts_where(course_id: str) -> str:
         "JOIN topics t ON s.topic_id = t.id WHERE t.course_id = %s")
 
 
+@router.get("/{course_id}/illustrations")
+def illustrations(course_id: str, limit: int = 12) -> dict:
+    """Diagrams/illustrations for a course, with metadata — shown early to make the course
+    feel exciting (spec 07 §5) and searchable (spec 05 §6)."""
+    rows = fetchall(
+        """SELECT d.blob_id, d.provenance, d.kind, d.caption, d.subtopic_name, d.source_url
+           FROM diagrams d JOIN interactions i ON d.interaction_id = i.id
+           JOIN subtopics s ON i.subtopic_id = s.id JOIN topics t ON s.topic_id = t.id
+           WHERE t.course_id = %s AND d.blob_id IS NOT NULL
+           ORDER BY d.provenance DESC LIMIT %s""", (course_id, limit))
+    return {"illustrations": [
+        {"blob_id": str(r["blob_id"]), "provenance": r["provenance"], "kind": r["kind"],
+         "caption": r["caption"], "subtopic": r["subtopic_name"], "source_url": r["source_url"]}
+        for r in rows]}
+
+
 @router.get("/{course_id}/population")
 def population(course_id: str) -> dict:
     course = get_course(course_id)

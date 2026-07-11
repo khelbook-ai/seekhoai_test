@@ -51,7 +51,7 @@ export default function CourseCreation() {
 
       <div className="row" style={{ marginTop: 22 }}>
         <button className="btn" disabled={busy || !prompt.trim()} onClick={create}>
-          {busy ? "Thinking…" : "Build my course"}
+          {busy ? <><span className="spin" /> Researching &amp; designing…</> : "Build my course"}
         </button>
       </div>
 

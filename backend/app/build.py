@@ -32,10 +32,18 @@ def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None) -
     Returns clarification questions (HITL pause) or advances toward the cost gate."""
     if user_id is None:
         user_id = ensure_user(raw_role)
+    elif raw_role:
+        # signed-in learner: capture the role they entered for this course (spec 01 §5)
+        from app.db import execute
+        execute("UPDATE users SET role_raw = %s WHERE id = %s", (raw_role, user_id))
 
     intent = intake.classify_intent(raw_prompt, raw_role)
     domain = intake.ground_domain(raw_prompt, raw_role, intent)
     save_intent_profile(user_id, intent, domain)
+
+    # Personalization: tune this course to what we know about the learner (spec 03 §13).
+    from app.agents import personalize
+    personalization = personalize.context_for_build(user_id)
 
     questions, assumptions = intake.clarification_questions(raw_prompt, raw_role, intent, domain)
     currency = intake.infer_currency_mode(questions)  # provisional; refined after answers
@@ -46,7 +54,8 @@ def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None) -
     )
     # stash intake artefacts on the course for resume
     update_course(course_id, cost_reconciliation=None)
-    _stash(course_id, intent=intent, domain=domain, raw_role=raw_role, assumptions=assumptions)
+    _stash(course_id, intent=intent, domain=domain, raw_role=raw_role, assumptions=assumptions,
+           personalization=personalization)
 
     if questions:
         save_clarifications(course_id, questions)
@@ -82,6 +91,7 @@ def _to_cost_gate(course_id: str, clarifications: list[ClarificationQ],
         raw_prompt=course["raw_prompt"], raw_role=st["raw_role"],
         intent=st["intent"], domain=st["domain"],
         clarifications=clarifications, assumptions=assumptions,
+        personalization=st.get("personalization", {}),
     )
     update_course(course_id, currency_mode=ctx.currency_mode)
     try:

@@ -139,9 +139,29 @@ The intake phase emits a single `CourseContext` object consumed by the Course Ar
   "domain_grounding": { "domain": "American Express / payments", "must_ground": true },
   "clarifications": [ { "q": "...", "answer": "..." } ],
   "currency_mode": "fundamentals | latest_research",
-  "assumptions": ["..."]
+  "assumptions": ["..."],
+  "personalization": { "summary_md": "...", "directives": {}, "weak_areas": [] }
 }
 ```
 
 `currency_mode = latest_research` is the trigger for the live-web research path (fetch recent
 papers, extract figures) described in `05-content-pipeline-and-tools.md`.
+
+---
+
+## 5. Learner identity — name-only signup
+
+Every learner signs in with **just a name** — no password, no email. The point is not auth;
+it is **attribution**: a stable `user_id` ties together everything that learner does — their
+courses, answers, weaknesses, pace and accuracy — so the **Personalization agent** (`03 §13`)
+can make each new course more contextual to them.
+
+- Signup is a single field ("What should we call you?"). Re-entering the same name resumes the
+  same profile (the app reuses an existing user with that name). Persisted in `users.name`.
+- The signed-in `user_id` is passed with every course build, session, and dashboard call. Course
+  lists, sessions, weaknesses and the profile are **scoped to the user**.
+- On finishing a session, the learner's **profile is refreshed** from their full history so the
+  *next* course is better tuned (harder where they're strong, more scaffolding where they
+  struggle). See the Personalization agent (`03 §13`) and `personalization` in `CourseContext`.
+- The learner's own **prompt and role** are captured and shown back to them on the **Student
+  Input** screen (`07 §3`), so they always see what they asked for.

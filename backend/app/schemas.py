@@ -43,6 +43,7 @@ class CourseContext(BaseModel):
     clarifications: list[ClarificationQ] = Field(default_factory=list)
     currency_mode: Literal["fundamentals", "latest_research"] = "fundamentals"
     assumptions: list[str] = Field(default_factory=list)
+    personalization: dict = Field(default_factory=dict)   # learner profile (spec 03 §13)
 
 
 # ---- curriculum (spec 03 §4) ------------------------------------------------

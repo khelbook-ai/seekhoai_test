@@ -74,7 +74,8 @@ export default function CostApproval() {
       {err && <p className="err">{err}</p>}
 
       <div className="row" style={{ marginTop: 24 }}>
-        <button className="btn" disabled={busy} onClick={() => approve(true)}>Approve &amp; build</button>
+        <button className="btn" disabled={busy} onClick={() => approve(true)}>
+          {busy ? <><span className="spin" /> Starting build…</> : "Approve & build"}</button>
         <button className="btn secondary" disabled={busy} onClick={() => approve(false)}>Revise scope</button>
       </div>
     </div>

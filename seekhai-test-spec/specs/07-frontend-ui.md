@@ -8,16 +8,22 @@ consistently, prominently placed** on every interaction. Everything else is seco
 
 ## 0. Navigation shell (left sidebar)
 
-A persistent **left sidebar** frames every screen so the tester can move back and forth
-between courses and between the stages of one course — **including returning to the
-clarification questions** — without losing work.
+**Signup gate (name-only, `01 §5`).** On first load the learner enters **just a name** — no
+password. This creates/resumes their `user_id`, which scopes their course list, sessions,
+weaknesses and profile. The sidebar shows the signed-in name with a "switch" action. All
+downstream API calls carry the `user_id`.
 
-- **New course** action at the top, then a list of **all the tester's courses** (most recent
+A persistent **left sidebar** frames every screen so the tester can move back and forth
+between courses and between the stages of one course — **including returning to their input**
+— without losing work.
+
+- **New course** action at the top, then a list of **the learner's courses** (most recent
   first) with each course's current **status** (`awaiting_clarification` / `awaiting_cost` /
   `building` / `built` / …). Clicking a course jumps to the stage that matches its status.
-- For the **active** course, the sidebar expands **stage links**: *Questions* (clarification),
-  *Cost & curriculum*, *Content / build* (population), *Learn*, *Dashboard*. A stage is
-  enabled once the course has reached it; earlier stages remain reachable (navigate back).
+- For the **active** course, the sidebar expands **stage links**: *Student Input*
+  (the learner's prompt/role + clarification), *Cost & curriculum*, *Content / build*
+  (population), *Learn*, *Dashboard*. A stage is enabled once the course has reached it; earlier
+  stages remain reachable (navigate back).
 - **State is server-persisted**, so navigation is non-destructive: every screen rehydrates
   from the backend (`GET /api/courses`, `GET /api/courses/{id}`) rather than in-memory
   router state — clarification questions and answers, curriculum, cost, and built content all
@@ -48,6 +54,25 @@ clarification questions** — without losing work.
 ---
 
 ## 2. The learning / interaction screen (most important)
+
+**Resume + progress (required).** Opening Learn **resumes** the learner's session for this
+course (`06 §6`) — position and running **score persist** across navigating away and back; the
+score never resets to 0. The screen shows an in-course **progress** indicator: percent complete,
+questions done / total, how many **topics** there are, and where the learner currently is
+(current topic + question position).
+
+**Sub-tab rail (required).** A rail lists every question **grouped by subtopic**, each tagged
+with a tick:
+- **green ✓** = completed correctly, **red ✗** = completed incorrectly, **neutral ○** = not yet
+  done (the current question is marked distinctly and is not a tick).
+- Clicking a **completed** question opens it **read-only** — the learner sees their answer and
+  the correct answer/feedback but **cannot reattempt or re-score** it. Not-yet-reached questions
+  are locked.
+
+**Responsiveness (required).** Every action that waits on the network shows immediate feedback —
+a **spinner** on the button and a disabled state — especially **submitting a Q&A answer** (which
+calls the grader and must never feel frozen), plus loading a session, a review, or building.
+
 
 ```
 ┌────────────────────────────────────────────┐
@@ -113,9 +138,12 @@ idea or the probe budget is spent, then the next MCQ is shown.
 
 ---
 
-## 3. Course-creation page
+## 3. Course-creation page & Student Input
 
 - Two big inputs: **"What do you want to learn?"** and **"What's your role?"**
+- The clarification stage is titled **"Student Input"** and **shows the learner's own prompt and
+  role back to them** (what they asked to learn, their role, the currency mode) above the
+  clarification questions — so the page that captures their intent actually displays it.
 - After submit, the **clarification questions** appear as **tappable option chips** (≤10, often
   fewer), one at a time or as a short stack — easy on mobile. A question flagged
   `multi_select` (`01 §3`, e.g. *"which areas of recent RL progress matter most to you?"*)
@@ -158,6 +186,11 @@ after the build completes.
 **Build progress (required).** Alongside the log, show an overall **percentage completion**
 with a progress bar and an `X/Y subtopics` count, derived from how many subtopics have
 generated content (`GET …/population → progress`). It reaches 100% when the course is `built`.
+
+**Illustrations gallery (required).** Show the course's illustrations **early** — a small
+gallery of the sourced/generated figures with their captions and `sourced`/`generated` badge
+(`GET …/illustrations`) — so the course immediately feels rich and substantial rather than a
+wall of text. Reused figures from the content library (`05 §11`) appear here too.
 
 **Course-level summary bar:**
 - **# MCQs**, **# Q&A items**, **# illustrations used** (sourced vs generated),

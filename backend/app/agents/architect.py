@@ -15,6 +15,13 @@ class ArchitectRefusal(Exception):
 
 def build_curriculum(ctx: CourseContext) -> Curriculum:
     clar = "; ".join(f"{c.q} -> {c.answer}" for c in ctx.clarifications) or "(none)"
+    p = ctx.personalization or {}
+    persona_note = "(new learner — no history yet)"
+    if p.get("summary_md") or p.get("weak_areas"):
+        weak = ", ".join(w.get("subtopic", "") for w in (p.get("weak_areas") or [])[:5])
+        persona_note = (f"{p.get('summary_md', '')} "
+                        f"Reinforce where they've struggled before: {weak or 'n/a'}. "
+                        f"Directives: {p.get('directives', {})}").strip()
     data, _ = complete_json(
         "course_architect",
         "You output ONLY valid JSON matching the requested shape.",
@@ -23,7 +30,8 @@ def build_curriculum(ctx: CourseContext) -> Curriculum:
                orientation=ctx.intent.orientation, seniority=ctx.intent.seniority,
                domain=ctx.domain_grounding.domain, must_ground=ctx.domain_grounding.must_ground,
                currency_mode=ctx.currency_mode, clarifications=clar,
-               assumptions="; ".join(ctx.assumptions) or "(none)"),
+               assumptions="; ".join(ctx.assumptions) or "(none)",
+               personalization=persona_note),
         phase="generation", max_tokens=4000,
     )
     if isinstance(data, dict) and data.get("refusal"):

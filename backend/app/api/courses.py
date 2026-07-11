@@ -14,10 +14,16 @@ router = APIRouter(prefix="/api/courses", tags=["courses"])
 
 
 @router.get("")
-def list_courses() -> dict:
-    """All courses with their current stage — powers the left sidebar (spec 07 §0)."""
-    rows = fetchall(
-        "SELECT id, title, status, currency_mode, created_at FROM courses ORDER BY created_at DESC")
+def list_courses(user_id: str | None = None) -> dict:
+    """A learner's courses with their current stage — powers the left sidebar (spec 07 §0).
+    Scoped to the signed-in user when provided."""
+    if user_id:
+        rows = fetchall(
+            "SELECT id, title, status, currency_mode, created_at FROM courses "
+            "WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+    else:
+        rows = fetchall(
+            "SELECT id, title, status, currency_mode, created_at FROM courses ORDER BY created_at DESC")
     return {"courses": [{"course_id": str(r["id"]), "title": r["title"], "status": r["status"],
                          "currency_mode": r["currency_mode"],
                          "created_at": r["created_at"].isoformat() if r["created_at"] else None}
@@ -33,6 +39,7 @@ def build_events(course_id: str, after: int = 0) -> dict:
 class CreateCourse(BaseModel):
     raw_prompt: str
     raw_role: str = ""
+    user_id: str | None = None
     tester_override: bool = False
     override_reason: str | None = None
 
@@ -49,7 +56,7 @@ def create_course(req: CreateCourse) -> dict:
         role = gr.sanitized_text if gr.allow else req.raw_role
     else:
         role = ""
-    return build.start_build(raw_prompt=g.sanitized_text, raw_role=role)
+    return build.start_build(raw_prompt=g.sanitized_text, raw_role=role, user_id=req.user_id)
 
 
 class ClarifyReq(BaseModel):
@@ -75,11 +82,14 @@ def get_course_detail(course_id: str) -> dict:
     if course is None:
         raise HTTPException(404, "course not found")
     clar = get_clarifications(course_id)
+    role_row = fetchall("SELECT role_raw FROM users WHERE id = %s", (course["user_id"],)) if course["user_id"] else []
     return {
         "course_id": course_id,
         "title": course["title"],
         "status": course["status"],
         "currency_mode": course["currency_mode"],
+        "raw_prompt": course["raw_prompt"],
+        "raw_role": role_row[0]["role_raw"] if role_row else None,
         "clarifications": [{"ordinal": c["ordinal"], "q": c["question"],
                             "options": c["options"] or [], "answer": c["answer"],
                             "multi_select": c.get("multi_select", False)} for c in clar],

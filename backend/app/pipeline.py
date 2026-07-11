@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-from app import events
+from app import events, library
 from app.agents import auditor, cost_reconciliation, scout
 from app.agents.checkers import option, semantic
 from app.agents.generators import content as gen
@@ -89,7 +89,10 @@ def _attach_diagram(interaction_id: str, subtopic_id: str, item: dict, package: 
     if not sug.get("needed"):
         return
     what = sug.get("what") or item.get("question_md", "")[:120]
+    subtopic_name = package.get("_subtopic_name") or ""
     figs = package.get("extracted", {}).get("figures", [])
+    # searchable keywords from the subtopic's required concepts (spec 05 §6)
+    kw = [k for k in (package.get("coverage_map", {}) or {}).get("required_concepts", []) if k][:12]
     # prefer a sourced figure with a fetchable image URL
     for f in figs:
         url = f.get("source_url")
@@ -97,7 +100,9 @@ def _attach_diagram(interaction_id: str, subtopic_id: str, item: dict, package: 
             fetched = tools.file_fetcher(url)
             if not fetched.get("error"):
                 blob_id = fetched["blob_ref"]
-                _write_diagram(interaction_id, blob_id, "sourced", url, f.get("license_hint"))
+                _write_diagram(interaction_id, blob_id, "sourced", url, f.get("license_hint"),
+                               kind=f.get("kind") or "figure", caption=f.get("caption") or what,
+                               keywords=kw, subtopic_name=subtopic_name)
                 execute("UPDATE interactions SET diagram_ref = %s WHERE id = %s",
                         (blob_id, interaction_id))
                 return
@@ -105,17 +110,21 @@ def _attach_diagram(interaction_id: str, subtopic_id: str, item: dict, package: 
     svg = gen.generate_svg_diagram(what, package.get("subtopic_id", subtopic_id))
     if svg:
         blob_id = get_blobstore().put("diagram", "image/svg+xml", svg.encode("utf-8"))
-        _write_diagram(interaction_id, blob_id, "generated", None, None)
+        _write_diagram(interaction_id, blob_id, "generated", None, None,
+                       kind="schematic", caption=what, keywords=kw, subtopic_name=subtopic_name)
         execute("UPDATE interactions SET diagram_ref = %s WHERE id = %s",
                 (blob_id, interaction_id))
 
 
 def _write_diagram(interaction_id: str, blob_id: str, provenance: str,
-                   source_url: str | None, license_hint: str | None) -> None:
+                   source_url: str | None, license_hint: str | None, *,
+                   kind: str | None = None, caption: str | None = None,
+                   keywords: list | None = None, subtopic_name: str | None = None) -> None:
     execute(
-        "INSERT INTO diagrams (interaction_id, blob_id, provenance, source_url, license_hint) "
-        "VALUES (%s,%s,%s,%s,%s)",
-        (interaction_id, blob_id, provenance, source_url, license_hint),
+        "INSERT INTO diagrams (interaction_id, blob_id, provenance, source_url, license_hint, "
+        "kind, caption, keywords, subtopic_name) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (interaction_id, blob_id, provenance, source_url, license_hint, kind, caption,
+         json.dumps(keywords) if keywords else None, subtopic_name),
     )
 
 
@@ -264,6 +273,7 @@ def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode
 
     events.emit(course_id, "scouting", "subtopic", f"── [{si}/{total}] subtopic: {st['name']} ──")
     package, audit_res = _scout_and_audit(st, currency_mode, domain_grounding, since)
+    package["_subtopic_name"] = st["name"]  # label diagrams for search (spec 05 §6)
     _persist_sources(st["subtopic_id"], package)
     if not audit_res.get("comprehensive"):
         events.emit(course_id, "scouting", "warn",
@@ -275,6 +285,19 @@ def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode
          json.dumps(audit_res.get("gaps", [])),
          json.dumps(package.get("sources", [])), st["subtopic_id"]),
     )
+
+    # Content reuse (spec 05 §11): after scouting, check the library for an existing subtopic
+    # we can reuse instead of re-generating (skips the costly generation/checking/verification).
+    domain = (domain_grounding or {}).get("domain", "general")
+    reuse_src = library.find_reusable(course_id, st["name"], domain,
+                                      (package.get("coverage_map", {}) or {}).get("required_concepts"))
+    if reuse_src:
+        cloned = library.clone_into(st["subtopic_id"], reuse_src)
+        events.emit(course_id, "generation", "reuse",
+                    f"♻ reused {cloned['interactions']} interactions for '{st['name']}' from the "
+                    f"content library — skipping generation/checks")
+        events.emit(course_id, "persist", "persist", f"persisted (reused) content for '{st['name']}'")
+        return
 
     items = _generate_and_check(st, package, intent, domain_grounding, course_id)
     events.emit(course_id, "generation", "option_check",
@@ -288,6 +311,12 @@ def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode
     # A learner reaches Q&A only after a wrong MCQ; the first follow-up is pre-built and
     # the reserve backs runtime root-cause probes so we never scrape mid-session.
     _build_followups(st, package, intent, domain_grounding, course_id)
+
+    # Register this freshly-built subtopic so future similar courses can reuse it (spec 05 §11).
+    try:
+        library.register_subtopic(course_id, st, domain, currency_mode, package)
+    except Exception as e:
+        events.emit(course_id, "persist", "warn", f"  ↳ library registration failed ({str(e)[:40]})")
 
 
 # --- top-level ---------------------------------------------------------------

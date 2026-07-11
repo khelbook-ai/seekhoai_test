@@ -13,17 +13,21 @@ export default function Clarification() {
   const stateQs = useLocation().state?.questions;
   const [questions, setQuestions] = useState(stateQs || []);
   const [answers, setAnswers] = useState({});      // ordinal -> string[] (selected options)
+  const [input, setInput] = useState(null);        // the learner's own prompt + role (item 5)
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
+  // Always load the course so we can show the learner's original input, even on the first pass.
   useEffect(() => {
-    if (stateQs && stateQs.length) return;
     api.getCourse(courseId).then((c) => {
-      const qs = c.clarifications || [];
-      setQuestions(qs);
-      const pre = {};
-      qs.forEach((q) => { if (q.answer) pre[q.ordinal] = q.answer.split(" · ").filter(Boolean); });
-      setAnswers(pre);
+      setInput({ prompt: c.raw_prompt, role: c.raw_role, currency: c.currency_mode });
+      if (!(stateQs && stateQs.length)) {
+        const qs = c.clarifications || [];
+        setQuestions(qs);
+        const pre = {};
+        qs.forEach((q) => { if (q.answer) pre[q.ordinal] = q.answer.split(" · ").filter(Boolean); });
+        setAnswers(pre);
+      }
     }).catch((e) => setErr(e.message));
   }, [courseId, stateQs]);
 
@@ -53,8 +57,22 @@ export default function Clarification() {
 
   return (
     <div className="wrap">
-      <h1 className="title">A few quick questions</h1>
-      <p className="lead">These tune the difficulty, depth, and framing of your course.</p>
+      <h1 className="title">Student Input</h1>
+      <p className="lead">What you asked for, and a few questions that tune the difficulty,
+        depth, and framing of your course.</p>
+
+      {input && (input.prompt || input.role) && (
+        <div className="card">
+          <div className="io-row"><span className="io-k">You want to learn</span>
+            <span className="io-v">{input.prompt || "—"}</span></div>
+          <div className="io-row"><span className="io-k">Your role</span>
+            <span className="io-v">{input.role || "—"}</span></div>
+          {input.currency && <div className="io-row"><span className="io-k">Mode</span>
+            <span className="io-v">{input.currency === "latest_research" ? "Latest research" : "Fundamentals"}</span></div>}
+        </div>
+      )}
+
+      {questions.length > 0 && <h2 className="sub">A few quick questions</h2>}
       {questions.map((q) => (
         <div key={q.ordinal} className="q-block">
           <div className="qtext">
@@ -74,7 +92,7 @@ export default function Clarification() {
       ))}
       {err && <p className="err">{err}</p>}
       <button className="btn" disabled={busy || !allAnswered} onClick={submit}>
-        {busy ? "Designing your curriculum…" : "Continue"}
+        {busy ? <><span className="spin" /> Designing your curriculum…</> : "Continue"}
       </button>
     </div>
   );

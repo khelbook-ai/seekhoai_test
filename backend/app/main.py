@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import courses, feedback, health, learning, population
+from app.api import courses, feedback, health, learning, population, users
 
 app = FastAPI(title="Seekhai_test", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(users.router)
 app.include_router(courses.router)
 app.include_router(population.router)
 app.include_router(learning.router)

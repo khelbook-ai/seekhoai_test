@@ -15,6 +15,38 @@ def ensure_user(role_raw: str | None) -> str:
     return str(row["id"])
 
 
+def create_user(name: str) -> dict:
+    """Name-only signup (spec 01 §5). Reuse an existing user with the same name so a learner
+    keeps one profile/history across sessions."""
+    name = (name or "").strip()[:80] or "Learner"
+    existing = fetchone("SELECT id, name FROM users WHERE name = %s ORDER BY created_at LIMIT 1", (name,))
+    if existing:
+        return {"user_id": str(existing["id"]), "name": existing["name"]}
+    row = execute("INSERT INTO users (name) VALUES (%s) RETURNING id", (name,))
+    return {"user_id": str(row["id"]), "name": name}
+
+
+def get_user(user_id: str) -> dict | None:
+    row = fetchone("SELECT id, name FROM users WHERE id = %s", (user_id,))
+    if not row:
+        return None
+    prof = fetchone("SELECT summary_md, directives, signals, updated_at FROM user_profiles WHERE user_id = %s",
+                    (user_id,))
+    return {"user_id": str(row["id"]), "name": row["name"],
+            "profile": {"summary_md": prof["summary_md"], "directives": prof["directives"],
+                        "signals": prof["signals"]} if prof else None}
+
+
+def save_user_profile(user_id: str, summary_md: str, directives, signals) -> None:
+    execute(
+        """INSERT INTO user_profiles (user_id, summary_md, directives, signals, updated_at)
+           VALUES (%s,%s,%s,%s, now())
+           ON CONFLICT (user_id) DO UPDATE SET summary_md = EXCLUDED.summary_md,
+             directives = EXCLUDED.directives, signals = EXCLUDED.signals, updated_at = now()""",
+        (user_id, summary_md, json.dumps(directives), json.dumps(signals)),
+    )
+
+
 def create_course(*, user_id: str | None, title: str, raw_prompt: str,
                   currency_mode: str, status: str) -> str:
     row = execute(

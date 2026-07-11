@@ -18,6 +18,11 @@ Intake:
 - currency_mode: {currency_mode}
 - clarifications: {clarifications}
 - assumptions so far: {assumptions}
+- learner profile (from their history — tune the course to this): {personalization}
+
+Personalize: if the learner profile shows areas they've struggled with before that are
+relevant here, give those more scaffolding / an extra subtopic or a gentler DL; where they've
+demonstrably mastered something, don't belabour the basics.
 
 Return ONLY this JSON (aim for 2-4 topics, each with 1-3 subtopics; keep it focused):
 {{
