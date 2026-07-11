@@ -30,6 +30,9 @@ clarification:                      # spec 01 §3
   clarify_threshold: 0.7
   ambiguity_floor: 0.2
 
+build:                              # spec 02 §5 — course build orchestration
+  max_concurrent_subtopics: 4       # subtopics are independent; build up to N in parallel
+
 checkers:                           # spec 04 §8
   max_regen_retries: 2
 

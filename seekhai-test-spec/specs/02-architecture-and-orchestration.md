@@ -184,6 +184,17 @@ agent logic.
 
 - **Idempotent regeneration.** Regenerating one interaction must not mutate siblings. Content
   is addressed by stable `interaction_id`.
+- **Bounded-concurrency subtopic build.** Subtopics are independent (each scouts, generates,
+  checks, and persists on its own), so the build runs them **in parallel** through a bounded
+  worker pool — `build.max_concurrent_subtopics` (default 4, capped under the DB connection
+  pool). Because the build is almost entirely I/O-bound on sequential LLM/scrape calls, this is
+  the dominant lever on build time: measured on a 9-subtopic RL course, wall-clock drops from
+  ~71 min (serial) to ~25 min at 4-way and ~10 min at full fan-out (floor = the slowest single
+  subtopic). Workers must stay within provider rate limits (calls already retry with backoff on
+  429s) and the DB pool size. A **single subtopic failing does not abort the build** — it's
+  logged as a warning and the rest complete (idempotent resume can re-run it); the build only
+  fails if *every* subtopic fails. Build events key by `course_id`, so concurrent logs simply
+  interleave in the live trace.
 - **Everything is captured.** Every agent call records tokens in/out, latency, model, and
   cost to Postgres (`generation_metrics`) in addition to observability traces — the spec
   explicitly requires capturing *generation speed*.

@@ -222,6 +222,50 @@ def _build_followups(st: dict, package: dict, intent: dict, domain_grounding: di
         events.emit(course_id, "generation", "warn", f"  ↳ seed follow-up failed ({str(e)[:50]})")
 
 
+# --- per-subtopic worker (runs concurrently, spec 02 §5) ---------------------
+def _build_subtopic(course_id: str, st: dict, si: int, total: int, currency_mode: str,
+                    domain_grounding: dict, intent: dict, since: str | None) -> None:
+    """Scout → audit → generate → check → persist → reserve for ONE subtopic. Self-contained
+    so subtopics can run in parallel: all DB access goes through the thread-safe pool and
+    build events key by course_id, so concurrent logs simply interleave."""
+    st = dict(st)
+    st["subtopic_id"] = str(st["subtopic_id"])
+    st["course_id"] = course_id
+    # idempotent resume: skip if this subtopic already has interactions
+    existing = fetchone("SELECT count(*) AS n FROM interactions WHERE subtopic_id = %s",
+                        (st["subtopic_id"],))
+    if existing and existing["n"] > 0:
+        events.emit(course_id, "generation", "skip", f"[{si}/{total}] '{st['name']}' already built — skipping")
+        return
+
+    events.emit(course_id, "scouting", "subtopic", f"── [{si}/{total}] subtopic: {st['name']} ──")
+    package, audit_res = _scout_and_audit(st, currency_mode, domain_grounding, since)
+    _persist_sources(st["subtopic_id"], package)
+    if not audit_res.get("comprehensive"):
+        events.emit(course_id, "scouting", "warn",
+                    f"'{st['name']}' marked PARTIALLY SOURCED after {get_settings().section('scouting').get('max_scout_rounds', 3)} rounds")
+    execute(
+        "UPDATE subtopics SET partially_sourced = %s, audit_score = %s, audit_gaps = %s, "
+        "source_manifest = %s WHERE id = %s",
+        (not audit_res.get("comprehensive"), audit_res.get("score"),
+         json.dumps(audit_res.get("gaps", [])),
+         json.dumps(package.get("sources", [])), st["subtopic_id"]),
+    )
+
+    items = _generate_and_check(st, package, intent, domain_grounding, course_id)
+    events.emit(course_id, "generation", "option_check",
+                f"Option Checker: {sum(1 for i in items if i['_type']=='mcq')} MCQs — answer-position variety + length balance")
+    for ordinal, item in enumerate(items):
+        _persist_interaction(st["subtopic_id"], ordinal, item, item.get("_checks", []), package)
+    events.emit(course_id, "persist", "persist",
+                f"persisted {len(items)} interactions for '{st['name']}'")
+
+    # Weakness Remediation Reserve + pre-generated seed follow-up (spec 04 §4, 05 §10).
+    # A learner reaches Q&A only after a wrong MCQ; the first follow-up is pre-built and
+    # the reserve backs runtime root-cause probes so we never scrape mid-session.
+    _build_followups(st, package, intent, domain_grounding, course_id)
+
+
 # --- top-level ---------------------------------------------------------------
 def run_content_pipeline(course_id: str) -> None:
     course = get_course(course_id)
@@ -234,47 +278,36 @@ def run_content_pipeline(course_id: str) -> None:
 
     intent, domain_grounding = _load_intent(course_id)
     subtopics = list_subtopics(course_id)
+    total = len(subtopics)
+
+    # Subtopics are independent, so build them with bounded concurrency (spec 02 §5). The
+    # pool is capped so we don't overwhelm provider rate limits or the DB connection pool.
+    max_workers = max(1, int(get_settings().section("build").get("max_concurrent_subtopics", 4)))
+    max_workers = min(max_workers, total or 1, 8)  # keep under the DB pool (max_size=10)
     events.emit(course_id, "generation", "start",
-                f"build started · {len(subtopics)} subtopics · currency={currency_mode} "
-                f"· domain='{domain_grounding.get('domain', 'general')}'")
+                f"build started · {total} subtopics · up to {max_workers} in parallel · "
+                f"currency={currency_mode} · domain='{domain_grounding.get('domain', 'general')}'")
 
-    for si, st in enumerate(subtopics, start=1):
-        st = dict(st)
-        st["subtopic_id"] = str(st["subtopic_id"])
-        st["course_id"] = course_id
-        # idempotent resume: skip if this subtopic already has interactions
-        existing = fetchone("SELECT count(*) AS n FROM interactions WHERE subtopic_id = %s",
-                            (st["subtopic_id"],))
-        if existing and existing["n"] > 0:
-            events.emit(course_id, "generation", "skip", f"[{si}/{len(subtopics)}] '{st['name']}' already built — skipping")
-            continue
+    if max_workers == 1:
+        for si, st in enumerate(subtopics, start=1):
+            _build_subtopic(course_id, st, si, total, currency_mode, domain_grounding, intent, since)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        events.emit(course_id, "scouting", "subtopic", f"── [{si}/{len(subtopics)}] subtopic: {st['name']} ──")
-        package, audit_res = _scout_and_audit(st, currency_mode, domain_grounding, since)
-        _persist_sources(st["subtopic_id"], package)
-        if not audit_res.get("comprehensive"):
-            events.emit(course_id, "scouting", "warn",
-                        f"'{st['name']}' marked PARTIALLY SOURCED after {get_settings().section('scouting').get('max_scout_rounds', 3)} rounds")
-        execute(
-            "UPDATE subtopics SET partially_sourced = %s, audit_score = %s, audit_gaps = %s, "
-            "source_manifest = %s WHERE id = %s",
-            (not audit_res.get("comprehensive"), audit_res.get("score"),
-             json.dumps(audit_res.get("gaps", [])),
-             json.dumps(package.get("sources", [])), st["subtopic_id"]),
-        )
-
-        items = _generate_and_check(st, package, intent, domain_grounding, course_id)
-        events.emit(course_id, "generation", "option_check",
-                    f"Option Checker: {sum(1 for i in items if i['_type']=='mcq')} MCQs — answer-position variety + length balance")
-        for ordinal, item in enumerate(items):
-            _persist_interaction(st["subtopic_id"], ordinal, item, item.get("_checks", []), package)
-        events.emit(course_id, "persist", "persist",
-                    f"persisted {len(items)} interactions for '{st['name']}'")
-
-        # Weakness Remediation Reserve + pre-generated seed follow-up (spec 04 §4, 05 §10).
-        # A learner reaches Q&A only after a wrong MCQ; the first follow-up is pre-built and
-        # the reserve backs runtime root-cause probes so we never scrape mid-session.
-        _build_followups(st, package, intent, domain_grounding, course_id)
+        failures = 0
+        with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="subtopic") as pool:
+            futs = {pool.submit(_build_subtopic, course_id, st, si, total, currency_mode,
+                                domain_grounding, intent, since): st
+                    for si, st in enumerate(subtopics, start=1)}
+            for fut in as_completed(futs):
+                try:
+                    fut.result()
+                except Exception as e:  # one subtopic failing must not abort the whole build
+                    failures += 1
+                    events.emit(course_id, "generation", "warn",
+                                f"subtopic '{futs[fut]['name']}' failed: {str(e)[:80]}")
+        if failures and failures == total:
+            raise RuntimeError("all subtopics failed to build")
 
     events.emit(course_id, "cost", "reconcile", "Cost Reconciliation: actual vs estimate…")
     recon = cost_reconciliation.reconcile(course_id, notes="build complete")
