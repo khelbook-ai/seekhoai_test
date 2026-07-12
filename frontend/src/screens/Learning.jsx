@@ -11,6 +11,9 @@ import ArchDiagram from "../components/interactions/ArchDiagram.jsx";
 const DL_LABEL = { 1: "Easy", 2: "Medium", 3: "Hard" };
 const TICK = { correct: "✓", wrong: "✗", unanswered: "○", reviewed: "▣" };
 const RICH = { order: OrderSteps, blanks: FillBlanks, dragdrop: ArchDiagram };
+// Rail labels for each interaction type (spec 04 §1).
+const TYPE_TAG = { mcq: "MCQ", order: "ORDER", blanks: "FILL-BLANKS", dragdrop: "DRAG-DROP",
+  walkthrough: "CODE WALKTHROUGH", qa: "Q&A" };
 
 // Render a rich interaction body (order/blanks/dragdrop), live or read-only.
 function RichBody({ it, value, onChange, decided, solution, readonly }) {
@@ -120,11 +123,13 @@ export default function Learning() {
   const prog = it?.progress || (map ? { answered: map.answered, total: map.total,
     pct: map.total ? Math.round((map.answered / map.total) * 100) : 0 } : null);
 
+  const wide = (it && it.type === "walkthrough") || (review && review.type === "walkthrough");
+
   return (
     <div className="learn">
       <Rail map={map} currentId={it?.id} reviewId={review?.id} score={score}
         onCurrent={goCurrent} onReview={openReview} />
-      <div className="learn-main">
+      <div className={"learn-main" + (wide ? " wide" : "")}>
         {prog && (
           <div className="progress-wrap">
             <div className="progress-head">
@@ -155,6 +160,7 @@ function Rail({ map, currentId, reviewId, score, onCurrent, onReview }) {
   if (!map) return null;
   return (
     <aside className="rail">
+      <div className="rail-head">Your progress</div>
       <div className="rail-score">Score <strong>{score}</strong></div>
       {map.groups.map((g) => (
         <div key={g.subtopic_id} className="rail-group">
@@ -169,7 +175,7 @@ function Rail({ map, currentId, reviewId, score, onCurrent, onReview }) {
                 onClick={() => (x.is_current ? onCurrent() : onReview(x.id))}
                 title={done ? "Review" : x.is_current ? "Current question" : "Not reached yet"}>
                 <span className={`tick ${x.status}`}>{x.is_current && !done ? "▸" : TICK[x.status]}</span>
-                <span>Q{i + 1} · {x.type.toUpperCase()} · DL{x.dl}</span>
+                <span>Q{i + 1} · {TYPE_TAG[x.type] || x.type.toUpperCase()} · DL{x.dl}</span>
               </button>
             );
           })}

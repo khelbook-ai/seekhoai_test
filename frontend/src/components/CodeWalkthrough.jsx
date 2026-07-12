@@ -57,6 +57,7 @@ export default function CodeWalkthrough({ wt, onDone, doneLabel = "Continue →"
     <div className="wt">
       {/* left: concept steps */}
       <div className="wt-steps">
+        <div className="wt-col-head">Steps</div>
         {steps.map((s, i) => (
           <button key={i} className={"wt-step" + (i === step ? " active" : "")} onClick={() => setStep(i)}>
             <div className="wt-step-title">{s.title}</div>
@@ -85,15 +86,18 @@ export default function CodeWalkthrough({ wt, onDone, doneLabel = "Continue →"
             </button>
           ))}
         </div>
-        <div className="wt-viewer" ref={codeRef}>
-          <div className="wt-gutter">{lines.map((_, i) => <div key={i}>{i + 1}</div>)}</div>
-          <div className="wt-codewrap" style={{ height: lines.length * LINE_H }}>
-            {ranges.map((r, i) => (
-              <div key={i} className="wt-band"
-                style={{ top: (r[0] - 1) * LINE_H, height: (r[1] - r[0] + 1) * LINE_H }} />
-            ))}
-            <pre className="wt-code"><code className={`language-${grammarFor(file.language).n}`}
-              dangerouslySetInnerHTML={{ __html: html }} /></pre>
+        <div className="wt-code-col">
+          <div className="wt-filetab">{fileIcon(activeFile)} {activeFile}</div>
+          <div className="wt-viewer" ref={codeRef}>
+            <div className="wt-gutter">{lines.map((_, i) => <div key={i}>{i + 1}</div>)}</div>
+            <div className="wt-codewrap" style={{ height: lines.length * LINE_H }}>
+              {ranges.map((r, i) => (
+                <div key={i} className="wt-band"
+                  style={{ top: (r[0] - 1) * LINE_H, height: (r[1] - r[0] + 1) * LINE_H }} />
+              ))}
+              <pre className="wt-code"><code className={`language-${grammarFor(file.language).n}`}
+                dangerouslySetInnerHTML={{ __html: html }} /></pre>
+            </div>
           </div>
         </div>
       </div>

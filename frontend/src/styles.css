@@ -230,11 +230,13 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .io-v { font-weight: 600; }
 
 /* ---- learn screen with sub-tab rail (item 7) ---- */
-.learn { display: flex; gap: 22px; max-width: 1040px; margin: 0 auto; padding: 24px 20px 96px; align-items: flex-start; }
-.learn-main { flex: 1 1 auto; min-width: 0; max-width: 720px; }
-.rail { flex: 0 0 232px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+.learn { display: flex; gap: 18px; max-width: 1320px; margin: 0; padding: 24px 20px 96px; align-items: flex-start; }
+.learn-main { flex: 1 1 auto; min-width: 0; max-width: 760px; }
+.learn-main.wide { max-width: 100%; }        /* walkthroughs use the full width */
+.rail { flex: 0 0 208px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-.rail-score { font-size: 0.95rem; color: var(--muted); padding: 4px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.rail-head { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 2px 6px; }
+.rail-score { font-size: 0.95rem; color: var(--muted); padding: 2px 6px 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
 .rail-score strong { color: var(--ink); font-size: 1.15rem; }
 .rail-group { margin-bottom: 12px; }
 .rail-sub { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 6px 4px; }
@@ -259,8 +261,9 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .tick.reviewed { color: var(--accent); }
 
 /* ---- guided code walkthrough (spec 07 §2) ---- */
-.wt { display: flex; gap: 16px; align-items: stretch; margin: 12px 0; }
+.wt { display: flex; gap: 14px; align-items: stretch; margin: 10px 0; }
 .wt-steps { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; }
+.wt-col-head { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 0 2px 2px; }
 .wt-step { text-align: left; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
   padding: 12px 14px; cursor: pointer; }
 .wt-step.active { border-color: var(--accent); background: #f1f8f4; }
@@ -269,14 +272,17 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .wt-nav { display: flex; gap: 8px; margin-top: 6px; }
 .wt-nav .btn { padding: 10px 14px; font-size: 0.95rem; }
 .wt-code-pane { flex: 1 1 auto; min-width: 0; display: flex; border: 1px solid var(--line);
-  border-radius: 10px; overflow: hidden; background: #fff; }
-.wt-files { flex: 0 0 150px; background: #f4f3f0; border-right: 1px solid var(--line); padding: 8px; }
+  border-radius: 10px; overflow: hidden; background: #fff; min-height: 520px; }
+.wt-files { flex: 0 0 148px; background: #f4f3f0; border-right: 1px solid var(--line); padding: 8px; }
 .wt-files-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 4px 6px 8px; }
 .wt-file { display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
   padding: 6px 8px; border-radius: 6px; font-size: 0.86rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wt-file:hover { background: #e9e7e2; }
 .wt-file.active { background: #e3ede9; font-weight: 600; }
-.wt-viewer { flex: 1 1 auto; min-width: 0; display: flex; max-height: 460px; overflow: auto; }
+.wt-code-col { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.wt-filetab { flex: 0 0 auto; padding: 9px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem; color: var(--ink); background: #f4f3f0; border-bottom: 1px solid var(--line); }
+.wt-viewer { flex: 1 1 auto; min-width: 0; display: flex; max-height: 620px; overflow: auto; }
 .wt-gutter { flex: 0 0 auto; text-align: right; padding: 12px 8px 12px 12px; color: #b3b3ad;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; user-select: none; }
 .wt-gutter > div { height: 22px; line-height: 22px; }
