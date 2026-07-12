@@ -18,6 +18,28 @@ seekhai/
 └── frontend/                 # plain, big-text React learning screen (spec 07)
 ```
 
+## Run the whole app with Docker (recommended for shipping)
+
+The entire stack — Postgres, the FastAPI backend, and the nginx-served frontend — runs from
+one command. The backend applies DB migrations automatically on startup; the frontend proxies
+`/api` to the backend, so the browser only talks to one origin.
+
+```bash
+cp .env.example .env         # then put your OPENROUTER_API_KEY in .env
+docker compose up --build    # add -d to run detached
+```
+
+Then open **http://localhost:5173**. (API + Swagger docs at http://localhost:8000/docs.)
+
+- **Only prerequisite:** Docker + Docker Compose, and an OpenRouter API key.
+- Data persists in named volumes (`seekhai_pgdata` for the DB, `seekhai_data` for the feedback
+  and cost `.md` trees). `docker compose down` stops it; `down -v` also wipes the data.
+- Rebuild after code changes with `docker compose up --build`.
+
+---
+
+## Run it locally (dev, without containerizing the app)
+
 ## Prerequisites
 - Docker (for Postgres) — or your own local Postgres 16
 - Python 3.11+

@@ -1,4 +1,6 @@
-# Local Postgres only. Everything else runs on your machine (spec: local-first, no cloud).
+# Full local stack: Postgres + backend (FastAPI) + frontend (nginx-served SPA).
+# Ship + run with:  cp .env.example .env  (add your OPENROUTER_API_KEY)  &&  docker compose up --build
+# Then open http://localhost:5173
 services:
   db:
     image: postgres:16
@@ -16,5 +18,29 @@ services:
       timeout: 3s
       retries: 10
 
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://seekhai:seekhai@db:5432/seekhai"
+      # Required for model + web-search calls (spec 02 §4). Set in .env.
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    volumes:
+      - seekhai_data:/app/data          # feedback .md tree + cost .md files persist here
+    ports:
+      - "8000:8000"                       # API + /docs (optional to expose)
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"                         # open http://localhost:5173
+    restart: unless-stopped
+
 volumes:
   seekhai_pgdata:
+  seekhai_data:

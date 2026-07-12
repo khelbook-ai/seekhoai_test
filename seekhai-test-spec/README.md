@@ -60,6 +60,12 @@ the live web (including fresh research papers and their figures) at build time.
 Course Architect, Scout, and generators are tuned for AI sources (arXiv, official docs,
 reputable AI blogs). Single-tenant / small tester group is fine for early phases.
 
+**Packaging:** the whole app runs locally via **Docker Compose** — three services (`db`
+Postgres, `backend` FastAPI, `frontend` nginx-served SPA). The backend applies migrations on
+startup; the frontend proxies `/api` to the backend (single origin, no CORS). `docker compose
+up --build` after setting `OPENROUTER_API_KEY` is the shipping path. This is still local-first
+(no cloud dependency).
+
 **Explicitly out of scope (for now):**
 - Non-AI subjects. Do **not** invest in generalising the curriculum engine.
 - **Cloud hosting / AWS / S3.** Everything runs locally: **local PostgreSQL** for all data and

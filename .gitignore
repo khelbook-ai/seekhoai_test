@@ -16,3 +16,6 @@ backend/data/
 
 # OS
 .DS_Store
+
+# keep the example env, ignore real ones
+!.env.example
