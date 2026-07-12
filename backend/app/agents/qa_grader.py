@@ -37,7 +37,10 @@ def grade(interaction: dict, answer: str) -> dict:
                dl=interaction.get("dl", 2), question=interaction.get("question_md", ""),
                rubric=json.dumps(interaction.get("qa_rubric") or {})[:2000],
                answer=answer[:2000]),
-        phase="grading", max_tokens=1500, interaction_id=str(interaction["id"]))
+        # Compact judgment only (band + rubric hit/miss + a one-liner). The full correct
+        # answer is pre-generated and served from the rubric, so the grader no longer writes
+        # prose — small output keeps this call sub-second on the submit path.
+        phase="grading", max_tokens=256, interaction_id=str(interaction["id"]))
     band = (data.get("raw_band") or "incorrect").lower()
     if band not in ("full", "partial", "incorrect"):
         band = "full" if data.get("correct") else "incorrect"

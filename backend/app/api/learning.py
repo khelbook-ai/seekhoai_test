@@ -14,6 +14,8 @@ from app.guardrail import check
 
 router = APIRouter(prefix="/api", tags=["learning"])
 
+QA_ANSWER_MAX = 300  # keep free-text answers short so grading stays token-cheap
+
 
 class CreateSession(BaseModel):
     course_id: str
@@ -115,7 +117,8 @@ def submit_answer(session_id: str, req: AnswerReq) -> dict:
     answer_text = req.answer_text
     if answer_text:  # guard free-text before it reaches the grader (03 §0)
         g = check(answer_text, "qa_answer")
-        answer_text = g.sanitized_text
+        # Cap length so grading tokens stay bounded (UI enforces 300; back it up here).
+        answer_text = g.sanitized_text[:QA_ANSWER_MAX]
     try:
         return runtime.submit_answer(session_id, req.interaction_id,
                                      selected_label=req.selected_label, answer_text=answer_text,

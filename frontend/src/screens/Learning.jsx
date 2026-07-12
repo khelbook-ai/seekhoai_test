@@ -10,6 +10,7 @@ import FillBlanks from "../components/interactions/FillBlanks.jsx";
 import ArchDiagram from "../components/interactions/ArchDiagram.jsx";
 
 const DL_LABEL = { 1: "Easy", 2: "Medium", 3: "Hard" };
+const QA_MAX = 300;   // cap free-text answers to keep grading tokens in check
 const TICK = { correct: "✓", wrong: "✗", unanswered: "○", reviewed: "▣" };
 const RICH = { order: OrderSteps, blanks: FillBlanks, dragdrop: ArchDiagram };
 // Rail labels for each interaction type (spec 04 §1).
@@ -60,6 +61,7 @@ export default function Learning() {
   const [content, setContent] = useState(null);
   const [result, setResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);   // optimistic: locked + answer revealed
 
   useEffect(() => {
     setLoading(true);
@@ -71,7 +73,7 @@ export default function Learning() {
 
   function resetLocal() {
     setSelected(null); setAnswerText(""); setRichResp(null); setHints([]); setHintsUsed(0);
-    setContent(null); setResult(null);
+    setContent(null); setResult(null); setSubmitted(false);
   }
   async function refreshMap(s = sid) { try { setMap(await api.sessionMap(s)); } catch {} }
 
@@ -98,13 +100,16 @@ export default function Learning() {
   }
   async function submit() {
     setSubmitting(true); setErr(null);
+    // Optimistic for Q&A: lock the answer and reveal the pre-loaded correct answer immediately,
+    // while grading (the one live LLM call) resolves the band/feedback in the background.
+    if (it.type === "qa") setSubmitted(true);
     try {
       const payload = it.type === "mcq" ? { interaction_id: it.id, selected_label: selected }
         : it.type === "qa" ? { interaction_id: it.id, answer_text: answerText }
         : { interaction_id: it.id, response: wrapResponse(it.type, richResp, it) };
       const r = await api.submitAnswer(sid, payload);
       setResult(r); setScore(r.running_score); refreshMap();
-    } catch (e) { setErr(e.message); } finally { setSubmitting(false); }
+    } catch (e) { setErr(e.message); setSubmitted(false); } finally { setSubmitting(false); }
   }
   function next() {
     resetLocal();
@@ -148,7 +153,7 @@ export default function Learning() {
             ? <><div className="header"><span>{it.subtopic}<span className="badge">code walkthrough</span></span></div>
                 <CodeWalkthrough wt={it.walkthrough} onDone={walkthroughDone} doneLabel="I've reviewed this →" /></>
           : it ? <Question it={it} {...{ selected, setSelected, answerText, setAnswerText, richResp, setRichResp,
-              hints, hintsUsed, content, result, submitting, reveal, showContent, submit, next }} />
+              hints, hintsUsed, content, result, submitting, submitted, reveal, showContent, submit, next }} />
           : <Complete score={score} onDash={() => nav(`/course/${courseId}/dashboard?session=${sid}`)}
               onOverview={() => nav(`/course/${courseId}`)} />}
       </div>
@@ -166,20 +171,23 @@ function Rail({ map, currentId, reviewId, score, onCurrent, onReview }) {
       {map.groups.map((g) => (
         <div key={g.subtopic_id} className="rail-group">
           <div className="rail-sub">{g.subtopic}</div>
-          {g.items.map((x, i) => {
+          {(() => { let qn = 0; return g.items.map((x) => {
             const done = x.status !== "unanswered";
             const clickable = done || x.is_current;
             const active = x.id === reviewId || (x.is_current && !reviewId);
+            const label = x.followup
+              ? `↳ Q&A follow-up · DL${x.dl}`
+              : `Q${(qn += 1)} · ${TYPE_TAG[x.type] || x.type.toUpperCase()} · DL${x.dl}`;
             return (
               <button key={x.id} disabled={!clickable}
-                className={`rail-item ${x.status} ${active ? "active" : ""}`}
+                className={`rail-item ${x.status} ${x.followup ? "followup" : ""} ${active ? "active" : ""}`}
                 onClick={() => (x.is_current ? onCurrent() : onReview(x.id))}
-                title={done ? "Review" : x.is_current ? "Current question" : "Not reached yet"}>
+                title={done ? "Review your answer" : x.is_current ? "Current question" : "Not reached yet"}>
                 <span className={`tick ${x.status}`}>{x.is_current && !done ? "▸" : TICK[x.status]}</span>
-                <span>Q{i + 1} · {TYPE_TAG[x.type] || x.type.toUpperCase()} · DL{x.dl}</span>
+                <span>{label}</span>
               </button>
             );
-          })}
+          }); })()}
         </div>
       ))}
     </aside>
@@ -247,6 +255,7 @@ function ReviewPanel({ r, onBack }) {
         <span className="detail">Scored {r.score_awarded} · {r.hints_used} hint(s) used</span>
       </div>
       {r.feedback_md && <div className="panel box"><h3>Feedback on your answer</h3><MarkdownView>{r.feedback_md}</MarkdownView></div>}
+      {r.model_answer && <div className="panel box"><h3>Correct answer</h3><MarkdownView>{r.model_answer}</MarkdownView></div>}
       {r.content_md && <div className="panel box"><h3>Content</h3><MarkdownView>{r.content_md}</MarkdownView></div>}
     </div>
   );
@@ -254,8 +263,9 @@ function ReviewPanel({ r, onBack }) {
 
 // --- the interactive question ----------------------------------------------
 function Question({ it, selected, setSelected, answerText, setAnswerText, richResp, setRichResp,
-                    hints, hintsUsed, content, result, submitting, reveal, showContent, submit, next }) {
+                    hints, hintsUsed, content, result, submitting, submitted, reveal, showContent, submit, next }) {
   const decided = !!result;
+  const pending = it.type === "qa" && submitted && !decided;   // graded async, band in flight
   const isFollowup = !!it.escalated_from;
   const isRich = !!RICH[it.type];
   const hintsLeft = (it.hints_available || 3) - hintsUsed;
@@ -311,14 +321,33 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
         <RichBody it={it} value={richResp} onChange={setRichResp} decided={decided}
           solution={result?.solution} />
       ) : (
-        <textarea className="text" placeholder="Answer in a sentence or two…" value={answerText}
-          disabled={decided} onChange={(e) => setAnswerText(e.target.value)} style={{ minHeight: 130 }} />
+        <div className="qa-answer">
+          <textarea className="text" placeholder="Answer in a sentence or two…" value={answerText}
+            disabled={decided || submitted} maxLength={QA_MAX} style={{ minHeight: 130 }}
+            onChange={(e) => setAnswerText(e.target.value.slice(0, QA_MAX))} />
+          {!decided && !submitted && (
+            <div className={"char-count" + (answerText.length >= QA_MAX ? " at-limit" : "")}>
+              {answerText.length}/{QA_MAX}
+            </div>
+          )}
+        </div>
       )}
 
-      {!decided && (
+      {!decided && !submitted && (
         <button className="submit" disabled={!canSubmit || submitting} onClick={submit}>
           {submitting ? <><span className="spin" /> Checking your answer…</> : "Submit answer"}
         </button>
+      )}
+
+      {/* Optimistic reveal (Q&A): the correct answer is pre-loaded, so it shows the instant the
+          learner submits — no wait on the grader. */}
+      {it.type === "qa" && submitted && it.model_answer && (
+        <div className="panel box" style={{ marginTop: 16 }}>
+          <h3>Correct answer</h3><MarkdownView>{it.model_answer}</MarkdownView>
+        </div>
+      )}
+      {pending && (
+        <div className="result pending"><span className="spin" /> Grading your answer…</div>
       )}
 
       {decided && (
@@ -334,6 +363,11 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
             <div className="panel" style={{ marginTop: 16 }}>
               <h3>Feedback on your answer</h3><MarkdownView>{result.feedback_md}</MarkdownView>
               {result.rubric_misses?.length > 0 && <p className="note">Missed: {result.rubric_misses.join("; ")}</p>}
+            </div>
+          )}
+          {it.type === "qa" && !it.model_answer && result.model_answer && (
+            <div className="panel box" style={{ marginTop: 16 }}>
+              <h3>Correct answer</h3><MarkdownView>{result.model_answer}</MarkdownView>
             </div>
           )}
           <button className="btn" style={{ marginTop: 18 }} onClick={next}>

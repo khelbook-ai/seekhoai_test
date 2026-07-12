@@ -22,7 +22,7 @@ def _ordered_interactions(course_id: str) -> list[dict]:
     # MCQ→Q&A escalation path (spec 04 §4), never in the normal course flow.
     return fetchall(
         """SELECT i.id, i.subtopic_id, i.type, i.dl, i.ordinal, i.question_md,
-                  i.content_panel_md, i.diagram_ref, i.walkthrough, i.payload,
+                  i.content_panel_md, i.diagram_ref, i.walkthrough, i.payload, i.qa_rubric,
                   s.name subtopic, s.ordinal s_ord, t.name topic, t.ordinal t_ord
            FROM interactions i JOIN subtopics s ON i.subtopic_id = s.id
            JOIN topics t ON s.topic_id = t.id
@@ -35,6 +35,62 @@ def _ordered_interactions(course_id: str) -> list[dict]:
 def _answered_ids(session_id: str) -> set:
     rows = fetchall("SELECT interaction_id FROM responses WHERE session_id = %s", (session_id,))
     return {str(r["interaction_id"]) for r in rows}
+
+
+def _model_answer(it: dict) -> str | None:
+    """The pre-generated reference answer for a Q&A (built into qa_rubric.model_answer). Served
+    to the learner instantly on submit/review so the grader never has to write it (fast path)."""
+    rub = it.get("qa_rubric")
+    if isinstance(rub, str):
+        try:
+            rub = json.loads(rub)
+        except (ValueError, TypeError):
+            rub = None
+    return (rub or {}).get("model_answer") if isinstance(rub, dict) else None
+
+
+def _target_dl(session_id: str) -> int:
+    """The learner's current working difficulty level, adapted across the whole session
+    (spec 03 §12, 04 §5). Everyone starts at DL1; a streak of low-hint corrects promotes,
+    a run of misses demotes. This is what routes the learner adaptively rather than linearly."""
+    rows = fetchall(
+        "SELECT is_correct correct, hints_used, band, dl FROM responses "
+        "WHERE session_id = %s AND is_correct IS NOT NULL ORDER BY responded_at", (session_id,))
+    if not rows:
+        return 1
+    return adaptive.working_dl(1, [dict(r) for r in rows])
+
+
+def _pick_adaptive(items: list[dict], answered: set, session_id: str) -> dict | None:
+    """Choose the next MAIN interaction adaptively (spec 04 §5): match the learner's working
+    DL first, then favour a *different* topic than the one they just answered to keep the route
+    engaging, then fall back to the natural course order. A subtopic's intro walkthrough is
+    always served before that subtopic's first question."""
+    unanswered = [it for it in items if str(it["id"]) not in answered]
+    if not unanswered:
+        return None
+    target = _target_dl(session_id)
+    last = fetchone(
+        "SELECT i.subtopic_id FROM responses r JOIN interactions i ON r.interaction_id = i.id "
+        "WHERE r.session_id = %s ORDER BY r.responded_at DESC LIMIT 1", (session_id,))
+    last_sub = str(last["subtopic_id"]) if last else None
+    last_topic = next((it["topic"] for it in items if str(it["subtopic_id"]) == last_sub), None)
+
+    # Route on scored questions; walkthroughs ride along with their subtopic.
+    pool = [it for it in unanswered if it["type"] != "walkthrough"] or unanswered
+
+    def key(it: dict) -> tuple:
+        return (abs(int(it["dl"]) - target),
+                0 if it["topic"] != last_topic else 1,
+                it["t_ord"], it["s_ord"], it["ordinal"])
+
+    choice = min(pool, key=key)
+    intro = [it for it in unanswered if it["type"] == "walkthrough"
+             and str(it["subtopic_id"]) == str(choice["subtopic_id"])
+             and it["ordinal"] < choice["ordinal"]]
+    if intro:
+        return min(intro, key=lambda it: it["ordinal"])
+    return choice
 
 
 def _public(it: dict, course_id: str, session_id: str, *, escalated_from: str | None = None) -> dict:
@@ -57,6 +113,8 @@ def _public(it: dict, course_id: str, session_id: str, *, escalated_from: str | 
         "base_score": it["dl"] * 2,
         "escalated_from": escalated_from,
     }
+    if it["type"] == "qa":                # pre-generated reference answer (04 §11): the client
+        pub["model_answer"] = _model_answer(it)  # holds it so it can be revealed instantly on submit
     if it["type"] == "walkthrough":       # read-only guided code tour (not scored)
         pub["walkthrough"] = it.get("walkthrough")
     if it["type"] in interactions_mod.RICH_TYPES:   # order/blanks/dragdrop — strip the answer
@@ -98,12 +156,12 @@ def current_interaction(session_id: str) -> dict | None:
         _PENDING.pop(session_id, None)
 
     answered = _answered_ids(session_id)
-    for it in _ordered_interactions(course_id):
-        if str(it["id"]) not in answered:
-            pub = _public(it, course_id, session_id)
-            pub["progress"] = _progress(course_id, session_id, it)
-            return pub
-    return None  # course complete
+    it = _pick_adaptive(_ordered_interactions(course_id), answered, session_id)
+    if it is None:
+        return None  # course complete
+    pub = _public(it, course_id, session_id)
+    pub["progress"] = _progress(course_id, session_id, it)
+    return pub
 
 
 def _running(session_id: str) -> int:
@@ -122,12 +180,12 @@ def _progress(course_id: str, session_id: str, current_it: dict) -> dict:
     for it in items:
         if it["topic"] not in topics:
             topics.append(it["topic"])
-    cur_id = str(current_it["id"])
-    idx = next((n for n, it in enumerate(items) if str(it["id"]) == cur_id), done)
     cur_sub = current_it.get("subtopic")
     cur_topic = next((it["topic"] for it in items if it["subtopic"] == cur_sub), topics[0] if topics else None)
+    # Adaptive routing jumps across topics/DLs, so a linear index would move backwards. Report
+    # position as "how many you've done + this one" — always forward.
     return {"answered": done, "total": total, "pct": round(100 * done / total) if total else 0,
-            "position": min(idx + 1, total) if total else 0, "topic_count": len(topics),
+            "position": min(done + 1, total) if total else 0, "topic_count": len(topics),
             "topics": topics, "current_topic": cur_topic, "current_subtopic": cur_sub,
             "running_score": _running(session_id)}
 
@@ -183,9 +241,32 @@ def session_map(session_id: str) -> dict:
             status = "correct" if r["is_correct"] else "wrong"
         g["items"].append({"id": str(it["id"]), "type": it["type"], "dl": it["dl"],
                            "ordinal": it["ordinal"], "status": status,
-                           "is_current": str(it["id"]) == cur_id})
+                           "is_current": str(it["id"]) == cur_id, "followup": False})
     total = sum(len(g["items"]) for g in groups)
     done = sum(1 for g in groups for x in g["items"] if x["status"] != "unanswered")
+
+    # Surface answered follow-up Q&As (escalation path, role != 'main'). They aren't part of
+    # the main sequence, but the learner still answered them and must be able to go back and
+    # review their answer + the correct one (requirement: Q&A history was invisible). Each is
+    # slotted right after the MCQ that triggered it, within the same subtopic group.
+    for f in fetchall(
+        """SELECT i.id, i.subtopic_id, i.type, i.dl, i.ordinal, r.is_correct, r.escalated_from
+           FROM responses r JOIN interactions i ON r.interaction_id = i.id
+           JOIN subtopics s ON i.subtopic_id = s.id JOIN topics t ON s.topic_id = t.id
+           WHERE r.session_id = %s AND t.course_id = %s AND i.role <> 'main'
+           ORDER BY r.responded_at""", (session_id, course_id)):
+        g = index.get(str(f["subtopic_id"]))
+        if g is None:
+            continue
+        parent = str(f["escalated_from"]) if f["escalated_from"] else None
+        item = {"id": str(f["id"]), "type": f["type"], "dl": f["dl"], "ordinal": f["ordinal"],
+                "status": "correct" if f["is_correct"] else "wrong",
+                "is_current": str(f["id"]) == cur_id, "followup": True, "parent_id": parent}
+        pos = len(g["items"])
+        if parent:
+            pos = next((n + 1 for n, x in enumerate(g["items"]) if x["id"] == parent), pos)
+        g["items"].insert(pos, item)
+
     return {"groups": groups, "current_id": cur_id, "answered": done, "total": total,
             "running_score": _running(session_id)}
 
@@ -214,6 +295,7 @@ def review_interaction(session_id: str, interaction_id: str) -> dict:
         "question_md": it["question_md"], "content_md": it["content_panel_md"],
         "walkthrough": it.get("walkthrough") if it["type"] == "walkthrough" else None,
         "payload": it.get("payload") if rich else None,   # full payload incl. correct answer
+        "model_answer": _model_answer(it) if it["type"] == "qa" else None,
         "your_response": your_response,
         "diagram_ref": str(it["diagram_ref"]) if it["diagram_ref"] else None,
         "options": [{"label": o["label"], "text": o["text"], "is_correct": o["is_correct"]} for o in opts],
@@ -419,6 +501,7 @@ def submit_answer(session_id: str, interaction_id: str, *, selected_label: str |
         result = {"correct": grade["correct"], "band": grade["band"],
                   "score_awarded": score, "rubric_hits": grade["rubric_hits"],
                   "rubric_misses": grade["rubric_misses"], "feedback_md": grade["feedback_md"],
+                  "model_answer": _model_answer(it),  # pre-generated; shown instantly
                   "cached": grade.get("cached", False)}
         if adaptive.is_weakness(interaction_type="qa", correct=grade["correct"], band=grade["band"]):
             _flag_weakness(user_id, str(it["subtopic_id"]))

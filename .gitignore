@@ -19,3 +19,6 @@ backend/data/
 
 # keep the example env, ignore real ones
 !.env.example
+
+# local demo recordings + playwright script
+demo/

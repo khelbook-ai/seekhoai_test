@@ -36,7 +36,10 @@ agents:
   walkthrough_generator:  { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   interaction_generator:  { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   domain_checker:         { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
-  qa_grader:              { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
+  # Grading is a constrained judgment against a rubric (not open generation) and sits on the
+  # learner's submit path, so it runs on a genuinely fast model. Revert to z-ai/glm-5.2 here
+  # if grading quality ever drifts.
+  qa_grader:              { provider: openrouter, model: google/gemini-2.5-flash, class: fast }
   # live web search — OpenRouter's built-in web plugin (Exa-backed), high quality (05 §2)
   web_search:             { provider: openrouter, model: z-ai/glm-5.2,           class: search }
   # INDEPENDENT model families (deliberately not GLM) — spec 03 §5b / §10

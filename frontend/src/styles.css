@@ -74,6 +74,7 @@ body {
 .result { margin-top: 24px; font-size: 1.15rem; font-weight: 600; }
 .result.correct { color: var(--correct); }
 .result.incorrect { color: var(--incorrect); }
+.result.pending { color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 8px; }
 .result .detail { display: block; font-weight: 400; color: var(--muted); font-size: 1rem; margin-top: 6px; }
 
 .feedback { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 16px; }
@@ -251,6 +252,13 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .tick.correct { color: var(--correct); }
 .tick.wrong { color: var(--incorrect); }
 .tick.unanswered { color: var(--muted); }
+.rail-item.followup { padding-left: 20px; font-size: 0.8rem; color: var(--muted); }
+.rail-item.followup .tick { flex-basis: 1em; }
+
+/* Q&A free-text answer: live character counter against the 300-char cap */
+.qa-answer { position: relative; }
+.char-count { text-align: right; font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+.char-count.at-limit { color: var(--incorrect); font-weight: 600; }
 .option .you { margin-left: auto; font-size: 0.78rem; color: var(--muted); }
 
 /* ---- illustrations gallery (item 3) ---- */
