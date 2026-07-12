@@ -4,6 +4,14 @@ import { api } from "../api.js";
 import BuildLog from "../components/BuildLog.jsx";
 import { fmtMins } from "./CostApproval.jsx";
 
+// Human labels for the interaction types shown in the curriculum counts.
+const TYPE_LABEL = { mcq: "MCQ", order: "order-steps", blanks: "fill-blanks",
+  dragdrop: "drag-drop", walkthrough: "walkthrough" };
+function typeSummary(byType) {
+  return Object.entries(byType || {}).filter(([, n]) => n > 0)
+    .map(([k, n]) => `${n} ${TYPE_LABEL[k] || k}`).join(" · ");
+}
+
 // Course population / curriculum view (spec 07 §5). Polls while building; shows derived
 // counts, cost estimate vs actual + reason, and per-subtopic detail.
 export default function Population() {
@@ -82,8 +90,8 @@ export default function Population() {
       {t && (
         <>
           <div className="stat-row">
-            <div className="stat"><div className="n">{t.mcqs}</div><div className="k">MCQs</div></div>
-            <div className="stat"><div className="n">{t.qa}</div><div className="k">Q&amp;A</div></div>
+            <div className="stat"><div className="n">{t.interactions_total ?? t.mcqs}</div><div className="k">Interactions</div></div>
+            <div className="stat"><div className="n">{t.followups}</div><div className="k">Follow-up Q&amp;A</div></div>
             <div className="stat"><div className="n">{t.illustrations.total}</div>
               <div className="k">Illustrations</div>
               <div className="note">{t.illustrations.sourced} sourced · {t.illustrations.generated} generated</div></div>
@@ -93,6 +101,9 @@ export default function Population() {
                 <div className="k">Avg. time to finish</div></div>
             )}
           </div>
+          <p className="note">
+            Interaction mix: <strong>{typeSummary(t.by_type) || "—"}</strong>
+          </p>
           <p className="note">
             Sources by format: {Object.entries(t.sources.by_format).map(([k, v]) => `${v} ${k}`).join(", ") || "—"}
             {t.newest_source && ` · newest: ${t.newest_source}`}
@@ -117,7 +128,9 @@ export default function Population() {
               <strong>{s.name}</strong> <span className="badge">DL{s.calibrated_dl}</span>
               {s.partially_sourced && <span className="badge warn">partially sourced</span>}
               <p className="note" style={{ marginTop: 4 }}>{s.description}</p>
-              <p className="note">{s.mcqs} MCQs · {s.qa} Q&amp;A · {s.illustrations} illustrations
+              <p className="note">{typeSummary(s.by_type) || `${s.mcqs} MCQs`}
+                {s.followups > 0 && ` · ${s.followups} follow-up Q&A`}
+                {s.illustrations > 0 && ` · ${s.illustrations} illustrations`}
                 {s.audit_score != null && ` · audit ${(s.audit_score * 100) | 0}%`}</p>
               {s.sources.length > 0 && (
                 <div className="src">Sources: {s.sources.map((so, i) => (

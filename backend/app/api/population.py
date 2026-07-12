@@ -56,8 +56,14 @@ def population(course_id: str) -> dict:
     if course is None:
         raise HTTPException(404, "course not found")
 
-    mcq = fetchone(f"SELECT count(*) n {_counts_where(course_id)} AND i.type='mcq'", (course_id,))["n"]
-    qa = fetchone(f"SELECT count(*) n {_counts_where(course_id)} AND i.type='qa'", (course_id,))["n"]
+    # Interactions by type in the MAIN learner sequence (mcq/order/blanks/dragdrop/walkthrough),
+    # plus follow-up Q&A counted separately (they only appear after a wrong answer).
+    by_type = {r["type"]: r["n"] for r in fetchall(
+        f"SELECT i.type, count(*) n {_counts_where(course_id)} AND i.role='main' GROUP BY i.type",
+        (course_id,))}
+    followups = fetchone(
+        f"SELECT count(*) n {_counts_where(course_id)} AND i.role LIKE 'followup%%'", (course_id,))["n"]
+    mcq = by_type.get("mcq", 0)
 
     diag_rows = fetchall(
         """SELECT d.provenance, count(*) n FROM diagrams d
@@ -93,8 +99,10 @@ def population(course_id: str) -> dict:
     per_subtopic = []
     for st in subs:
         sid = st["id"]
-        smcq = fetchone("SELECT count(*) n FROM interactions WHERE subtopic_id=%s AND type='mcq'", (sid,))["n"]
-        sqa = fetchone("SELECT count(*) n FROM interactions WHERE subtopic_id=%s AND type='qa'", (sid,))["n"]
+        sbytype = {r["type"]: r["n"] for r in fetchall(
+            "SELECT type, count(*) n FROM interactions WHERE subtopic_id=%s AND role='main' GROUP BY type", (sid,))}
+        sfollow = fetchone("SELECT count(*) n FROM interactions WHERE subtopic_id=%s AND role LIKE 'followup%%'", (sid,))["n"]
+        smcq = sbytype.get("mcq", 0)
         sdiag = fetchone(
             "SELECT count(*) n FROM diagrams d JOIN interactions i ON d.interaction_id=i.id "
             "WHERE i.subtopic_id=%s", (sid,))["n"]
@@ -102,7 +110,7 @@ def population(course_id: str) -> dict:
         per_subtopic.append({
             "subtopic_id": str(sid), "name": st["name"], "description": st["description"],
             "topic": st["topic_name"], "calibrated_dl": st["calibrated_dl"],
-            "mcqs": smcq, "qa": sqa, "illustrations": sdiag,
+            "mcqs": smcq, "by_type": sbytype, "followups": sfollow, "illustrations": sdiag,
             "partially_sourced": st["partially_sourced"], "audit_score": float(st["audit_score"]) if st["audit_score"] is not None else None,
             "audit_gaps": st["audit_gaps"] or [],
             "sources": [{"url": s["url"], "title": s["title"], "type": s["type"],
@@ -125,7 +133,8 @@ def population(course_id: str) -> dict:
         "progress": {"pct": progress_pct, "built_subtopics": built_subs, "total_subtopics": total_subs},
         "completion": _completion_minutes(course_id),
         "totals": {
-            "mcqs": mcq, "qa": qa,
+            "mcqs": mcq, "qa": followups, "by_type": by_type, "followups": followups,
+            "interactions_total": sum(by_type.values()),
             "illustrations": {"total": sum(diagrams.values()),
                               "sourced": diagrams.get("sourced", 0),
                               "generated": diagrams.get("generated", 0)},
