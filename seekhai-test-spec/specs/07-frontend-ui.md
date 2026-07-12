@@ -28,6 +28,16 @@ between courses and between the stages of one course — **including returning t
   from the backend (`GET /api/courses`, `GET /api/courses/{id}`) rather than in-memory
   router state — clarification questions and answers, curriculum, cost, and built content all
   reload when revisited. The sidebar reflects build-status changes by polling the course list.
+- **Stages are one-way commits (required).** Each setup stage has a single commit action
+  (Student Input → *Continue*; Cost & curriculum → *Approve & build*). That action is shown
+  **only while the course is at that stage** (`awaiting_clarification` / `awaiting_cost`
+  respectively). Once the course has moved on, the earlier screens are **read-only** — the
+  commit buttons disappear and options are non-interactive — so a learner can still *view* what
+  they submitted but cannot re-trigger the Architect or a rebuild from a stale screen. **To
+  change anything after approval, the learner starts a new course.** The Content/build page has
+  no commit action to hide (the build runs automatically after approval); its forward links
+  (*Start learning*, *Dashboard*) remain. This is enforced on the **backend** too:
+  `submit_clarifications` and `approve_cost` are no-ops once the course is past their stage.
 - Responsive: on narrow screens the sidebar collapses to a top strip; the big-text single
   column remains the primary reading surface.
 
@@ -162,6 +172,9 @@ idea or the probe budget is spent, then the next MCQ is shown.
 - The clarification stage is titled **"Student Input"** and **shows the learner's own prompt and
   role back to them** (what they asked to learn, their role, the currency mode) above the
   clarification questions — so the page that captures their intent actually displays it.
+- **One-way (spec §0):** the *Continue* button and the option chips are active only while
+  `awaiting_clarification`; afterwards the screen is read-only with a "start a new course to
+  change this" note.
 - After submit, the **clarification questions** appear as **tappable option chips** (≤10, often
   fewer), one at a time or as a short stack — easy on mobile. A question flagged
   `multi_select` (`01 §3`, e.g. *"which areas of recent RL progress matter most to you?"*)
@@ -191,6 +204,9 @@ idea or the probe budget is spent, then the next MCQ is shown.
   so the tester sees the estimate reflects real past builds (`03 §6`, `06 §5`).
 - Primary action **Approve & build**; secondary **Revise scope**.
 - No content is generated until Approve is pressed.
+- **One-way (spec §0):** both buttons show only while `awaiting_cost`; once building/built the
+  screen is read-only (approving again never re-triggers a build) with a link to start a new
+  course.
 
 ## 5. Course-population / curriculum view (post-approval)
 

@@ -92,11 +92,22 @@ export default function CostApproval() {
       )}
       {err && <p className="err">{err}</p>}
 
-      <div className="row" style={{ marginTop: 24 }}>
-        <button className="btn" disabled={busy} onClick={() => approve(true)}>
-          {busy ? <><span className="spin" /> Starting build…</> : "Approve & build"}</button>
-        <button className="btn secondary" disabled={busy} onClick={() => approve(false)}>Revise scope</button>
-      </div>
+      {/* One-way commit (spec 07 §0): approval buttons only while awaiting_cost. Once the
+          build has started/finished this is read-only — start a new course to change scope. */}
+      {course.status === "awaiting_cost" ? (
+        <div className="row" style={{ marginTop: 24 }}>
+          <button className="btn" disabled={busy} onClick={() => approve(true)}>
+            {busy ? <><span className="spin" /> Starting build…</> : "Approve & build"}</button>
+          <button className="btn secondary" disabled={busy} onClick={() => approve(false)}>Revise scope</button>
+        </div>
+      ) : (
+        <div className="row" style={{ marginTop: 24 }}>
+          <p className="note locked-note">Cost already approved — this course is
+            {course.status === "built" ? " built" : " building"}. To change the scope or cost,
+            start a <span className="link" onClick={() => nav("/")}>new course</span>.</p>
+          <button className="btn" onClick={() => nav(`/course/${courseId}`)}>Go to build</button>
+        </div>
+      )}
     </div>
   );
 }

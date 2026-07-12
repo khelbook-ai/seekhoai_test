@@ -73,6 +73,10 @@ def submit_clarifications(course_id: str, answers: dict[int, str]) -> dict:
     course = get_course(course_id)
     if course is None:
         raise KeyError("course not found")
+    # One-way commit (spec 07 §0): once the curriculum has been designed, this stage is locked.
+    # Re-submitting must NOT re-run the Architect — the learner starts a new course to change it.
+    if course["status"] not in ("intake", "awaiting_clarification"):
+        return {"course_id": course_id, "status": course["status"], "locked": True}
     set_clarification_answers(course_id, answers)
     rows = get_clarifications(course_id)
     clar = [ClarificationQ(q=r["question"], options=r["options"] or [], answer=r["answer"])
@@ -120,6 +124,10 @@ def approve_cost(course_id: str, approved: bool) -> dict:
     course = get_course(course_id)
     if course is None:
         raise KeyError("course not found")
+    # One-way commit (spec 07 §0): only actionable while awaiting cost approval. Once building/
+    # built, re-approving is a no-op (never re-triggers a build) — start a new course to change.
+    if course["status"] != "awaiting_cost":
+        return {"course_id": course_id, "status": course["status"], "locked": True}
     if not approved:
         update_course(course_id, cost_approved=False, accepted=False, status="rejected")
         return {"course_id": course_id, "status": "rejected"}

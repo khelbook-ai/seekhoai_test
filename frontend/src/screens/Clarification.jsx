@@ -14,12 +14,18 @@ export default function Clarification() {
   const [questions, setQuestions] = useState(stateQs || []);
   const [answers, setAnswers] = useState({});      // ordinal -> string[] (selected options)
   const [input, setInput] = useState(null);        // the learner's own prompt + role (item 5)
+  const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  // This stage is a one-way commit (spec 07 §0): editable only before the curriculum is
+  // designed. Once past clarification it's read-only — start a new course to change anything.
+  const locked = status != null && !["intake", "awaiting_clarification"].includes(status);
 
   // Always load the course so we can show the learner's original input, even on the first pass.
   useEffect(() => {
     api.getCourse(courseId).then((c) => {
+      setStatus(c.status);
       setInput({ prompt: c.raw_prompt, role: c.raw_role, currency: c.currency_mode });
       if (!(stateQs && stateQs.length)) {
         const qs = c.clarifications || [];
@@ -81,9 +87,9 @@ export default function Clarification() {
           </div>
           <div className="chips">
             {q.options.map((opt) => (
-              <button key={opt}
+              <button key={opt} disabled={locked}
                 className={"chip" + ((answers[q.ordinal] || []).includes(opt) ? " selected" : "")}
-                onClick={() => toggle(q, opt)}>
+                onClick={() => !locked && toggle(q, opt)}>
                 {opt}
               </button>
             ))}
@@ -91,9 +97,14 @@ export default function Clarification() {
         </div>
       ))}
       {err && <p className="err">{err}</p>}
-      <button className="btn" disabled={busy || !allAnswered} onClick={submit}>
-        {busy ? <><span className="spin" /> Designing your curriculum…</> : "Continue"}
-      </button>
+      {locked ? (
+        <p className="note locked-note">This course is already past setup — your input is locked.
+          To change the topic, role, or answers, start a <a className="link" onClick={() => nav("/")}>new course</a>.</p>
+      ) : (
+        <button className="btn" disabled={busy || !allAnswered} onClick={submit}>
+          {busy ? <><span className="spin" /> Designing your curriculum…</> : "Continue"}
+        </button>
+      )}
     </div>
   );
 }
