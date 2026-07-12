@@ -106,7 +106,9 @@ def _to_cost_gate(course_id: str, clarifications: list[ClarificationQ],
     events.emit(course_id, "intake", "architect",
                 f"Course Architect: '{curriculum.title}' — {len(curriculum.topics)} topics, "
                 f"{sum(len(t.subtopics) for t in curriculum.topics)} subtopics")
-    est = cost_estimator.estimate(curriculum, ctx.currency_mode)
+    est = cost_estimator.estimate(curriculum, ctx.currency_mode,
+                                  domain=ctx.domain_grounding.domain,
+                                  orientation=ctx.intent.orientation)
     events.emit(course_id, "cost", "estimate",
                 f"Cost Estimator: ~${est.total_estimate:.4f} (buffer {est.buffer_pct}%) — awaiting approval")
     update_course(course_id, cost_estimate=est.model_dump(), status="awaiting_cost")

@@ -73,11 +73,14 @@ class Curriculum(BaseModel):
 class CostEstimate(BaseModel):
     currency: str = "USD"
     total_estimate: float = 0.0
+    raw_estimate: float = 0.0                              # before history calibration
     buffer_pct: int = 15
     by_phase: dict[str, float] = Field(default_factory=dict)
     by_subtopic: list[dict[str, Any]] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     tokens_estimate: int = 0
+    calibration: dict | None = None                        # from similar past builds (03 §6, 06 §5)
+    est_completion_minutes: int = 0                        # avg learner time to finish (item 10)
 
 
 # ---- content package (spec 05 §3) -------------------------------------------

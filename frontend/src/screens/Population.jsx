@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import BuildLog from "../components/BuildLog.jsx";
+import { fmtMins } from "./CostApproval.jsx";
 
 // Course population / curriculum view (spec 07 §5). Polls while building; shows derived
 // counts, cost estimate vs actual + reason, and per-subtopic detail.
@@ -87,6 +88,10 @@ export default function Population() {
               <div className="k">Illustrations</div>
               <div className="note">{t.illustrations.sourced} sourced · {t.illustrations.generated} generated</div></div>
             <div className="stat"><div className="n">{t.sources.total}</div><div className="k">Sources</div></div>
+            {pop.completion?.minutes > 0 && (
+              <div className="stat"><div className="n">{fmtMins(pop.completion.minutes).replace("~", "")}</div>
+                <div className="k">Avg. time to finish</div></div>
+            )}
           </div>
           <p className="note">
             Sources by format: {Object.entries(t.sources.by_format).map(([k, v]) => `${v} ${k}`).join(", ") || "—"}

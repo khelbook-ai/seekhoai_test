@@ -48,6 +48,17 @@ scouting:                           # spec 05 §4 (open decisions D15, D21)
 
 cost:
   buffer_pct: 15
+  calibration_min_overlap: 0.34     # Jaccard similarity for "similar course" (spec 03 §6)
+  calibration_min_samples: 1        # min similar past builds before calibrating
+
+completion_time:                    # avg learner minutes per interaction type (spec 07, item 10)
+  mcq: 1.0
+  order: 1.5
+  blanks: 1.5
+  dragdrop: 2.0
+  walkthrough: 4.0
+  qa: 2.5
+  followup_allowance: 0.4           # fraction of scored items expected to trigger a follow-up
 
 observability:                      # spec 06 §3
   backend: "none"                   # none | langsmith | phoenix (none for Phase 0)

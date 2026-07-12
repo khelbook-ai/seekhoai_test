@@ -149,6 +149,16 @@ Estimates the **token cost of building the whole course** and gates the build.
 }
 ```
 
+**History calibration (spec 06 §5).** The raw heuristic is only a first guess, so before the
+gate the estimator consults the **global cost history** — the cross-user / cross-session record
+of past builds' estimated-vs-actual cost (indexing the reconciliation `.md` files). It finds
+**similar** past courses (keyword Jaccard over `cost.calibration_min_overlap`) and multiplies
+the raw estimate by the **median actual/estimated ratio** of those courses, so the shown
+estimate reflects how estimates actually panned out for that kind of course. **Only similar
+courses are used** — with no similar history the raw heuristic stands unchanged. The estimate
+records `raw_estimate`, the applied `calibration` (factor, sample count, which past courses),
+and an **average learner completion time** (`est_completion_minutes`, item 10).
+
 **Gate:** the build graph pauses (`cost_gate`) and does not generate any paid content until
 the user approves. On rejection, the build ends; the user can revise scope and re-run.
 

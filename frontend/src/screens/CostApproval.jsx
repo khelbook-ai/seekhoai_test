@@ -2,6 +2,14 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 
+// Format minutes as "~45 min" or "~1h 20m".
+export function fmtMins(m) {
+  if (!m) return "—";
+  if (m < 60) return `~${m} min`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `~${h}h ${r}m` : `~${h}h`;
+}
+
 // Cost-approval screen (spec 07 §4). No content is generated until Approve is pressed.
 export default function CostApproval() {
   const { courseId } = useParams();
@@ -41,8 +49,19 @@ export default function CostApproval() {
           <div className="cost-line" key={k}><span style={{ textTransform: "capitalize" }}>{k}</span>
             <span className="mono">${Number(v).toFixed(4)}</span></div>
         ))}
+        {est.calibration && (
+          <div className="cost-line"><span>Calibrated from history</span>
+            <span className="mono">×{est.calibration.factor} · raw ${Number(est.raw_estimate).toFixed(4)}</span></div>
+        )}
         <p className="note">Currency: USD · buffer {est.buffer_pct}% · ~{(est.tokens_estimate || 0).toLocaleString()} tokens ·
           currency mode: {course.currency_mode}</p>
+        {est.est_completion_minutes > 0 && (
+          <p className="note">⏱ Average time to finish the course: <strong>{fmtMins(est.est_completion_minutes)}</strong></p>
+        )}
+        {est.calibration && (
+          <p className="note">Estimate tuned from {est.calibration.samples} similar past course(s) whose actual cost
+            ran ×{est.calibration.factor} the raw heuristic — see their cost reconciliation .md files.</p>
+        )}
       </div>
 
       <h2 className="sub">Curriculum</h2>

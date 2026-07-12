@@ -196,6 +196,16 @@ build_events(
   message text, meta jsonb, created_at timestamptz
 )
 
+-- Global cost history: cross-user/session index of estimated-vs-actual per build (03 §6, §5).
+cost_history(
+  id uuid pk, course_id uuid fk, title text, domain text, currency_mode text,
+  keywords jsonb,                                          -- signature terms for similarity
+  estimated numeric, actual numeric, delta_pct numeric,
+  ratio numeric,                                           -- actual / estimated
+  md_path text,                                            -- the reconciliation .md it indexes
+  created_at timestamptz
+)
+
 -- Metrics --------------------------------------------------------------------
 generation_metrics(
   id uuid pk, course_id uuid fk, interaction_id uuid,      -- nullable for phase-level rows
@@ -356,6 +366,17 @@ drivers/summary, and *how much actually ran* — web searches, scrapes, extracti
 rounds, generations, checks, reserve builds, sources used, subtopics built, interactions reused
 from the library, and a token+cost-by-phase table. This makes each build's economics auditable
 outside the app.
+
+**Global cost-history utility (cross-user / cross-session).** The `.md` cost files are a
+**global record shared across all users and sessions**, and every reconciliation is also
+indexed in **`cost_history`** (`§1`: course signature keywords, estimated, actual, ratio,
+delta, and the `md_path` it points at). When a **new** course is estimated, the Cost Estimator
+(`03 §6`) queries this history for **similar** courses (keyword Jaccard over
+`cost.calibration_min_overlap`) and corrects the current run's estimate by their median
+actual/estimated ratio — i.e. it learns from how estimation went for that kind of course before.
+**The correction is applied for similar courses only**; with no similar history the raw estimate
+is used unchanged. The table is the queryable index; the `.md` tree remains the durable,
+human-readable source it references.
 
 ---
 

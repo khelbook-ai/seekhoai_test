@@ -4,10 +4,28 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import get_settings
 from app.db import fetchall, fetchone
 from app.store import get_course
 
 router = APIRouter(prefix="/api/courses", tags=["population"])
+
+
+def _completion_minutes(course_id: str) -> dict:
+    """Average learner time to finish, from the ACTUAL built interactions (spec 07, item 10)."""
+    ct = get_settings().section("completion_time")
+    rows = fetchall(
+        """SELECT i.type, count(*) n FROM interactions i JOIN subtopics s ON i.subtopic_id=s.id
+           JOIN topics t ON s.topic_id=t.id WHERE t.course_id=%s AND i.role='main'
+           GROUP BY i.type""", (course_id,))
+    minutes, scored = 0.0, 0
+    for r in rows:
+        minutes += r["n"] * float(ct.get(r["type"], 1.5))
+        if r["type"] != "walkthrough":
+            scored += r["n"]
+    # allow for some wrong answers triggering a follow-up Q&A
+    minutes += scored * float(ct.get("followup_allowance", 0.4)) * float(ct.get("qa", 2.5))
+    return {"minutes": int(round(minutes))}
 
 
 def _counts_where(course_id: str) -> str:
@@ -105,6 +123,7 @@ def population(course_id: str) -> dict:
     return {
         "course_id": course_id, "title": course["title"], "status": course["status"],
         "progress": {"pct": progress_pct, "built_subtopics": built_subs, "total_subtopics": total_subs},
+        "completion": _completion_minutes(course_id),
         "totals": {
             "mcqs": mcq, "qa": qa,
             "illustrations": {"total": sum(diagrams.values()),

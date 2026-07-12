@@ -43,10 +43,28 @@ def reconcile(course_id: str, notes: str = "") -> dict:
     }
     update_course(course_id, cost_actual=actual, cost_delta_abs=delta_abs,
                   cost_delta_pct=delta_pct, cost_reconciliation=recon)
+    md_path = None
     try:
         md_path = _write_cost_md(course_id, course, recon)
         update_course(course_id, cost_md_path=md_path)
         recon["md_path"] = md_path
+    except Exception:
+        pass
+    # Append to the GLOBAL cost history so future similar builds calibrate off this (06 §5).
+    try:
+        from app import cost_history
+        from app.db import fetchall as _fa, fetchone as _fo
+
+        subs = [r["name"] for r in _fa(
+            "SELECT s.name FROM subtopics s JOIN topics t ON s.topic_id=t.id WHERE t.course_id=%s",
+            (course_id,))]
+        dom_row = _fo("SELECT ip.domain_grounding FROM courses c JOIN intent_profiles ip "
+                      "ON ip.user_id=c.user_id WHERE c.id=%s ORDER BY ip.created_at DESC LIMIT 1",
+                      (course_id,))
+        domain = ((dom_row or {}).get("domain_grounding") or {}).get("domain")
+        cost_history.record(course_id, course.get("title", ""), domain, course.get("currency_mode", ""),
+                            cost_history.signature(course.get("title", ""), subs, domain),
+                            estimated, actual, delta_pct, md_path)
     except Exception:
         pass
     return recon

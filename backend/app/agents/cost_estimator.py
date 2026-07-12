@@ -7,6 +7,7 @@ scouting overhead. Multiply by per-model prices; add buffer (default 15%).
 """
 from __future__ import annotations
 
+from app import cost_history
 from app.config import get_settings
 from app.registry import get_model
 from app.schemas import CostEstimate, Curriculum
@@ -20,7 +21,24 @@ _AVG = {
 }
 
 
-def estimate(curriculum: Curriculum, currency_mode: str = "fundamentals") -> CostEstimate:
+def _completion_minutes(curriculum: Curriculum, orientation: str = "general") -> int:
+    """Rough learner time-to-complete from the curriculum (before the course is built).
+    Each scored item ~1.3 min; technical learners also get a code walkthrough per subtopic."""
+    ct = get_settings().section("completion_time")
+    per_item = (float(ct.get("mcq", 1.0)) + float(ct.get("order", 1.5))
+                + float(ct.get("blanks", 1.5)) + float(ct.get("dragdrop", 2.0))) / 4.0
+    allowance = 1 + float(ct.get("followup_allowance", 0.4)) * float(ct.get("qa", 2.5)) / max(per_item, 0.1) * 0.25
+    minutes = 0.0
+    for topic in curriculum.topics:
+        for st in topic.subtopics:
+            minutes += max(1, int(st.target_question_count)) * per_item
+            if orientation == "technical":
+                minutes += float(ct.get("walkthrough", 4.0)) + float(ct.get("mcq", 1.0))
+    return int(round(minutes * allowance))
+
+
+def estimate(curriculum: Curriculum, currency_mode: str = "fundamentals",
+             domain: str | None = None, orientation: str = "general") -> CostEstimate:
     cfg = get_settings().section("cost")
     buffer_pct = int(cfg.get("buffer_pct", 15))
 
@@ -68,17 +86,31 @@ def estimate(curriculum: Curriculum, currency_mode: str = "fundamentals") -> Cos
             by_subtopic.append({"subtopic": st.name, "estimate": sub_est,
                                 "target_question_count": q})
 
-    raw_total = sum(by_phase.values())
-    total = round(raw_total * (1 + buffer_pct / 100), 4)
+    raw_total = round(sum(by_phase.values()) * (1 + buffer_pct / 100), 4)
     by_phase = {k: round(v, 5) for k, v in by_phase.items()}
 
+    assumptions = [
+        f"~{_AVG['gen_per_item_in'] + _AVG['gen_per_item_out']} tokens/item generation, "
+        "option+domain+verification checks each, 0 regens assumed",
+        f"scouting+audit per subtopic; recency multiplier {recency_mult}x",
+        f"{buffer_pct}% contingency buffer applied",
+    ]
+
+    # History calibration (spec 03 §6, 06 §5): correct the raw heuristic estimate by how
+    # estimates actually panned out for SIMILAR past courses. Only similar courses are used.
+    sub_names = [st.name for t in curriculum.topics for st in t.subtopics]
+    kw = cost_history.signature(curriculum.title, sub_names, domain)
+    calib = cost_history.calibration(kw, currency_mode)
+    total = raw_total
+    if calib:
+        total = round(raw_total * calib["factor"], 4)
+        assumptions.append(
+            f"calibrated ×{calib['factor']} from {calib['samples']} similar past course(s) "
+            f"(their actual ran {calib['factor']}× the heuristic estimate)")
+
     return CostEstimate(
-        currency="USD", total_estimate=total, buffer_pct=buffer_pct,
+        currency="USD", total_estimate=total, raw_estimate=raw_total, buffer_pct=buffer_pct,
         by_phase=by_phase, by_subtopic=by_subtopic, tokens_estimate=tokens_total,
-        assumptions=[
-            f"~{_AVG['gen_per_item_in'] + _AVG['gen_per_item_out']} tokens/item generation, "
-            "option+domain+verification checks each, 0 regens assumed",
-            f"scouting+audit per subtopic; recency multiplier {recency_mult}x",
-            f"{buffer_pct}% contingency buffer applied",
-        ],
+        calibration=calib, est_completion_minutes=_completion_minutes(curriculum, orientation),
+        assumptions=assumptions,
     )

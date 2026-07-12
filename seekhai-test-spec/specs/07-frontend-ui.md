@@ -184,6 +184,11 @@ idea or the probe budget is spent, then the next MCQ is shown.
 
 - Shows the **estimated build cost** with a simple breakdown (by phase and top subtopics) and
   the assumptions.
+- **Average time to finish the course** (learner-facing, item 10) — e.g. "⏱ ~45 min" — from
+  `cost_estimate.est_completion_minutes`.
+- **History calibration note** (item 11): when the estimate was tuned from similar past courses,
+  show the factor and raw estimate (e.g. "tuned ×1.5 from 2 similar past courses; raw $0.11")
+  so the tester sees the estimate reflects real past builds (`03 §6`, `06 §5`).
 - Primary action **Approve & build**; secondary **Revise scope**.
 - No content is generated until Approve is pressed.
 
@@ -204,6 +209,10 @@ after the build completes.
 **Build progress (required).** Alongside the log, show an overall **percentage completion**
 with a progress bar and an `X/Y subtopics` count, derived from how many subtopics have
 generated content (`GET …/population → progress`). It reaches 100% when the course is `built`.
+
+**Average time to finish (item 10).** The course-level totals include an **"Avg. time to
+finish"** stat computed from the actual built interactions by type (`GET …/population →
+completion`), so the learner knows the time commitment.
 
 **Illustrations gallery (required).** Show the course's illustrations **early** — a small
 gallery of the sourced/generated figures with their captions and `sourced`/`generated` badge
