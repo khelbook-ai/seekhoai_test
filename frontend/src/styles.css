@@ -230,9 +230,9 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .io-v { font-weight: 600; }
 
 /* ---- learn screen with sub-tab rail (item 7) ---- */
-.learn { display: flex; gap: 18px; max-width: 1320px; margin: 0; padding: 24px 20px 96px; align-items: flex-start; }
-.learn-main { flex: 1 1 auto; min-width: 0; max-width: 760px; }
-.learn-main.wide { max-width: 100%; }        /* walkthroughs use the full width */
+.learn { display: flex; gap: 18px; max-width: none; margin: 0; padding: 24px 24px 96px; align-items: flex-start; }
+.learn-main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+.learn-main.wide { max-width: none; }         /* walkthroughs fill all remaining width */
 .rail { flex: 0 0 208px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .rail-head { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 2px 6px; }
