@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import MarkdownView from "../components/MarkdownView.jsx";
 import FeedbackWidget from "../components/FeedbackWidget.jsx";
 import CodeWalkthrough from "../components/CodeWalkthrough.jsx";
+import Zoomable from "../components/Zoomable.jsx";
 import OrderSteps from "../components/interactions/OrderSteps.jsx";
 import FillBlanks from "../components/interactions/FillBlanks.jsx";
 import ArchDiagram from "../components/interactions/ArchDiagram.jsx";
@@ -222,7 +223,7 @@ function ReviewPanel({ r, onBack }) {
           <span className="badge">reviewing</span></span>
         <button className="link" onClick={onBack}>← back to current</button>
       </div>
-      {r.diagram_ref && <div className="diagram"><img src={`/api/blobs/${r.diagram_ref}`} alt="diagram" /></div>}
+      {r.diagram_ref && <div className="diagram"><Zoomable src={`/api/blobs/${r.diagram_ref}`} alt="question diagram" /></div>}
       <div className="question"><MarkdownView>{r.question_md}</MarkdownView></div>
 
       {r.type === "mcq" ? (
@@ -275,7 +276,7 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
         <p className="note followup-note">Let's find where this idea slipped — answer in a
           sentence or two. No equations needed.</p>
       )}
-      {it.diagram_ref && <div className="diagram"><img src={`/api/blobs/${it.diagram_ref}`} alt="diagram" /></div>}
+      {it.diagram_ref && <div className="diagram"><Zoomable src={`/api/blobs/${it.diagram_ref}`} alt="question diagram" /></div>}
       <div className="question"><MarkdownView>{it.question_md}</MarkdownView></div>
 
       <div className="actions">

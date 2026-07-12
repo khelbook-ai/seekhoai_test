@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import BuildLog from "../components/BuildLog.jsx";
+import Zoomable from "../components/Zoomable.jsx";
 import { fmtMins } from "./CostApproval.jsx";
 
 // Human labels for the interaction types shown in the curriculum counts.
@@ -74,7 +75,8 @@ export default function Population() {
           <div className="gallery">
             {illus.map((im, i) => (
               <figure className="gcard" key={i}>
-                <img src={`/api/blobs/${im.blob_id}`} alt={im.caption || "illustration"} loading="lazy" />
+                <Zoomable src={`/api/blobs/${im.blob_id}`} alt={im.caption || "illustration"}
+                  caption={im.caption || im.subtopic || im.kind} />
                 <figcaption>{im.subtopic || im.kind}
                   <span className={"badge " + (im.provenance === "sourced" ? "" : "warn")}>{im.provenance}</span>
                 </figcaption>

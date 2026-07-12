@@ -129,6 +129,10 @@ Completed walkthroughs show a neutral **▣ reviewed** tick in the rail and reop
 **Difficulty (required):** every question — MCQ and Q&A — displays its **difficulty level**
 (DL1 Easy / DL2 Medium / DL3 Hard) in the header as a badge.
 
+**Diagrams are click-to-enlarge (required):** a diagram attached to a question (and shown again
+in read-only review) opens a full-screen lightbox on click, using the same mechanism as the
+illustrations gallery (`§5`).
+
 **Button placement rules (hard requirements):**
 - **Content** and **Hint** appear on **every** interaction (MCQ and Q&A), in the **same fixed
   position** — a dedicated action row **at the top of the interaction, directly beneath the
@@ -233,7 +237,9 @@ completion`), so the learner knows the time commitment.
 **Illustrations gallery (required).** Show the course's illustrations **early** — a small
 gallery of the sourced/generated figures with their captions and `sourced`/`generated` badge
 (`GET …/illustrations`) — so the course immediately feels rich and substantial rather than a
-wall of text. Reused figures from the content library (`05 §11`) appear here too.
+wall of text. Reused figures from the content library (`05 §11`) appear here too. **Every
+illustration is click-to-enlarge** (a full-screen lightbox with the caption; close on backdrop
+click, the × button, or Escape).
 
 **Course-level summary bar:**
 - **# MCQs**, **# Q&A items**, **# illustrations used** (sourced vs generated),

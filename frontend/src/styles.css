@@ -259,6 +259,18 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .gcard img { width: 100%; height: 120px; object-fit: contain; background: #fff; display: block; padding: 8px; }
 .gcard figcaption { font-size: 0.78rem; color: var(--muted); padding: 6px 8px; border-top: 1px solid var(--line); }
 
+/* ---- click-to-enlarge images (spec 07 §2/§5) ---- */
+img.zoomable { cursor: zoom-in; }
+.lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(0, 0, 0, 0.82);
+  display: flex; align-items: center; justify-content: center; padding: 32px; cursor: zoom-out; }
+.lightbox-fig { margin: 0; display: flex; flex-direction: column; align-items: center; cursor: default; }
+.lightbox-fig img { max-width: 94vw; max-height: 86vh; object-fit: contain; background: #fff;
+  border-radius: 8px; box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5); }
+.lightbox-fig figcaption { color: #fff; text-align: center; margin-top: 12px; font-size: 0.95rem; max-width: 80vw; }
+.lightbox-close { position: fixed; top: 14px; right: 22px; width: 40px; height: 40px; font-size: 1.8rem;
+  line-height: 1; color: #fff; background: rgba(0, 0, 0, 0.4); border: none; border-radius: 50%; cursor: pointer; }
+.lightbox-close:hover { background: rgba(0, 0, 0, 0.7); }
+
 .tick.reviewed { color: var(--accent); }
 
 /* ---- guided code walkthrough (spec 07 §2) ---- */
