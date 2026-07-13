@@ -357,6 +357,86 @@ img.zoomable { cursor: zoom-in; }
 .chip.sel { background: #e3ede9; }
 .chip.placed { border-style: solid; cursor: grab; }
 
+/* ---- thumbs up/down feedback (spec 06 §8, 07) ---- */
+.thumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.thumbs.compact { gap: 3px; }
+.thumbs-label { color: var(--muted); font-size: 0.85rem; margin-right: 2px; }
+.thumb { background: none; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  font-size: 0.95rem; line-height: 1; padding: 5px 8px; filter: grayscale(0.6); opacity: 0.75; }
+.thumb:hover { border-color: var(--muted); opacity: 1; filter: none; }
+.thumb.on { filter: none; opacity: 1; }
+.thumb.on.up { border-color: var(--correct); background: #f1f8f4; }
+.thumb.on.down { border-color: var(--incorrect); background: #fbf1f0; }
+.thumbs.compact .thumb { padding: 3px 5px; font-size: 0.85rem; }
+.thumbs-msg { color: var(--muted); font-size: 0.82rem; }
+.thumbs-note { display: flex; gap: 6px; align-items: center; flex: 1 1 220px; min-width: 180px; }
+.thumbs-note .text { padding: 6px 10px; font-size: 0.9rem; }
+.thumbs-note .btn { padding: 7px 12px; font-size: 0.9rem; }
+.thumbs-bar { display: flex; align-items: center; gap: 10px; margin: 14px 0 4px;
+  padding-top: 12px; border-top: 1px dashed var(--line); }
+
+/* ---- right-side metrics panel on the learn screen (spec 07 §2) ---- */
+.learn-aside { flex: 0 0 220px; position: sticky; top: 16px; max-height: calc(100vh - 32px);
+  overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px; }
+.learn-aside .m-head { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin: 0 0 10px; }
+.metric { margin: 0 0 14px; }
+.metric .m-k { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+.metric .m-v { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
+.metric .m-sub { font-size: 0.82rem; color: var(--muted); }
+.m-ring { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.m-ring .ring { --pct: 0; width: 56px; height: 56px; border-radius: 50%; flex: 0 0 56px; position: relative;
+  background: conic-gradient(var(--accent) calc(var(--pct) * 1%), #eceae6 0);
+  display: flex; align-items: center; justify-content: center; }
+.m-ring .ring::before { content: ""; width: 42px; height: 42px; border-radius: 50%; background: var(--panel); position: absolute; }
+.m-ring .ring span { position: relative; font-size: 0.9rem; font-weight: 700; }
+.m-diff { display: inline-block; font-weight: 700; padding: 3px 10px; border-radius: 999px; font-size: 0.9rem; }
+.m-diff.dl1 { color: var(--correct); background: #f1f8f4; border: 1px solid #bfe0cd; }
+.m-diff.dl2 { color: #8a6d1f; background: #fbf6e6; border: 1px solid #e3cf8f; }
+.m-diff.dl3 { color: var(--incorrect); background: #fbf1f0; border: 1px solid #e0b3ad; }
+.m-split { display: flex; gap: 6px; }
+.m-split > div { flex: 1; text-align: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px 2px; }
+.m-split .m-v { font-size: 1.15rem; }
+.learn-aside .divider { border: none; border-top: 1px solid var(--line); margin: 14px 0; }
+
+/* ---- landing-page capabilities (spec 07 §3) ---- */
+.hero { max-width: 760px; }
+.hero .tagline { font-size: 1.25rem; line-height: 1.5; color: var(--ink); margin: 0 0 10px; }
+.caps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 26px 0 8px; }
+.cap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.cap .cap-ico { font-size: 1.4rem; }
+.cap h3 { margin: 8px 0 6px; font-size: 1.02rem; }
+.cap p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
+.pill { font-size: 0.85rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; background: var(--panel); }
+
+/* ---- user-level data view (spec 06 §9, 07) ---- */
+.dossier { max-width: 1000px; }
+.dossier .u-card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+.dossier .u-card.spend { border-left-color: #8a6d1f; }
+.dossier h2.sub { margin-top: 30px; }
+.d-course { border: 1px solid var(--line); border-radius: 12px; margin: 16px 0; overflow: hidden; }
+.d-course > summary { cursor: pointer; padding: 14px 18px; background: #f4f3f0; font-weight: 600;
+  display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.d-course > summary .st { font-size: 0.75rem; color: var(--muted); font-weight: 400; }
+.d-body { padding: 6px 18px 18px; }
+.cost-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+.cost-grid .stat { flex: 1 1 120px; }
+.cost-grid .stat .v { font-size: 1.3rem; font-weight: 700; }
+table.qa-log { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.92rem; }
+table.qa-log th, table.qa-log td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.qa-log th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+table.qa-log td.res.correct { color: var(--correct); }
+table.qa-log td.res.wrong { color: var(--incorrect); }
+.pref-row { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.pref-row .q { color: var(--muted); font-size: 0.9rem; }
+.pref-row .a { font-weight: 600; }
+
+@media (max-width: 980px) {
+  .learn-aside { display: none; }   /* metrics fold away before the rail on narrow screens */
+}
 @media (max-width: 720px) {
   .app-shell { flex-direction: column; }
   .sidebar { width: auto; flex: none; height: auto; position: static; border-right: none;

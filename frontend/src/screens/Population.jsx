@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import BuildLog from "../components/BuildLog.jsx";
 import Zoomable from "../components/Zoomable.jsx";
+import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
 import { fmtMins } from "./CostApproval.jsx";
 
 // Human labels for the interaction types shown in the curriculum counts.
@@ -152,6 +153,9 @@ export default function Population() {
         <button className="btn secondary" onClick={() => nav(`/course/${courseId}/dashboard`)}>Dashboard</button>
       </div>
       <p className="note" style={{ marginTop: 12 }}>Course id: <code>{courseId}</code></p>
+      <div className="thumbs-bar">
+        <ThumbsFeedback kind="page" id={`build:${courseId}`} label="Does the generated content look right?" />
+      </div>
     </div>
   );
 }

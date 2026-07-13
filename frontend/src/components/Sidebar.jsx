@@ -54,6 +54,10 @@ export default function Sidebar({ user, onSignOut }) {
         </div>
       )}
       <button className="newbtn" onClick={() => nav("/")}>+ New course</button>
+      <button className={"stage" + (loc.pathname === "/me" ? " here" : "")}
+        style={{ width: "100%", textAlign: "left" }} onClick={() => nav("/me")}>
+        📊 My learning data
+      </button>
 
       <div className="sec">Your courses</div>
       {courses.length === 0 && <p className="note">No courses yet.</p>}

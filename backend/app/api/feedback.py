@@ -9,7 +9,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.db import execute, fetchone
-from app.feedback import save_application_feedback, save_content_feedback
+from app.feedback import save_application_feedback, save_content_feedback, save_reaction
 from app.guardrail import check
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
@@ -83,3 +83,22 @@ def application_feedback(req: AppFeedbackReq) -> dict:
     fid = save_application_feedback(page_key=req.page_key, user_id=req.user_id,
                                     feedback_md=g.sanitized_text)
     return {"saved": True, "feedback_id": fid}
+
+
+class ReactionReq(BaseModel):
+    target_kind: str                 # interaction|content|hint|answer_feedback|course|dashboard|page
+    target_id: str | None = None     # interaction id / course id / page_key
+    value: int                       # 1 = thumbs up, -1 = thumbs down
+    note: str | None = None
+    user_id: str | None = None
+
+
+@router.post("/reaction")
+def reaction(req: ReactionReq) -> dict:
+    """One-click thumbs up/down, droppable anywhere in the UI (spec 06 §8, 07)."""
+    note = req.note
+    if note:
+        note = check(note, entry_point="app_feedback", user_id=req.user_id).sanitized_text
+    r = save_reaction(user_id=req.user_id, target_kind=req.target_kind,
+                      target_id=req.target_id or "", value=req.value, note=note)
+    return {"saved": True, **r}

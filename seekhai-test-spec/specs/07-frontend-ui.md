@@ -79,9 +79,23 @@ with a tick:
   the correct answer/feedback but **cannot reattempt or re-score** it. Not-yet-reached questions
   are locked.
 
+**Right-side metrics panel (required).** The learning screen is a three-column layout: the
+sub-tab rail (left), the interaction (centre), and a **live metrics panel (right)** that fills
+the previously-empty right column with the numbers a learner cares about mid-session:
+- **completion** as a percentage ring (+ questions done / total),
+- the current question's **difficulty** (and, when adapting, the working DL it's routing toward),
+- running **score** and **accuracy** (correct ÷ answered so far, scored questions only),
+- **questions right / answered**, and the **topic count** + current topic.
+The panel is sticky, hidden on narrow screens (it folds away before the rail), and suppressed in
+the full-width walkthrough view.
+
 **Responsiveness (required).** Every action that waits on the network shows immediate feedback —
 a **spinner** on the button and a disabled state — especially **submitting a Q&A answer** (which
 calls the grader and must never feel frozen), plus loading a session, a review, or building.
+
+**Thumbs feedback (required).** The question, its content and hint panels, and the Q&A answer
+feedback each carry a one-click **thumbs up/down** (`§9`, `06 §8`), so a learner can signal
+quality without writing prose.
 
 **Richer interaction types.** The interaction area renders by `type` (`04 §1`): **`order`** —
 a reorderable step list (↑/↓); **`blanks`** — tap a word-bank chip to drop it into a blank, tap
@@ -171,6 +185,18 @@ idea or the probe budget is spent, then the next MCQ is shown.
 ---
 
 ## 3. Course-creation page & Student Input
+
+**Landing hero + capabilities (required).** The course-creation page is also the product's
+landing page, so it must **sell the capability before asking for input**. Above the two inputs:
+- a **hero** headline and tagline making the core promise clear — you enter a *prompt* and,
+  based on the *choices you make*, a whole course is generated and researched on the **live
+  web**, then taught **by doing** (no lectures, no videos);
+- a line making explicit that **thanks to the rich interactions** (MCQs, ordering, fill-blanks,
+  code walkthroughs, short Q&A) learners stay engaged and remember more **even without videos**;
+- a **capabilities grid** (prompt-to-course, calibrated-to-you, live-web research, learn-by-doing,
+  never-stuck adaptivity/hints, progress & weakness tracking) plus a row of short capability
+  pills. This is a hard requirement: a first-time visitor should understand what Seekhai does
+  and why it's different without scrolling into the app.
 
 - Two big inputs: **"What do you want to learn?"** and **"What's your role?"**
 - The clarification stage is titled **"Student Input"** and **shows the learner's own prompt and
@@ -281,3 +307,37 @@ course is and what it cost to build.
   action row on small screens.
 - Content and Hint buttons meet large touch-target sizing (≥44px height, comfortably larger
   here given the big-text mandate).
+
+---
+
+## 9. Thumbs up/down feedback (`ThumbsFeedback`)
+
+A single reusable component — `<ThumbsFeedback kind=… id=… label=… />` — that renders a 👍/👎
+pair with an optional label, dropped **in as many places as possible** to maximise collected
+signal (`06 §8`):
+
+- **Learning screen:** the question overall (`kind="interaction"`), the content panel
+  (`content`), the hint ladder (`hint`), and the Q&A answer feedback (`answer_feedback`); the
+  read-only review reuses the interaction thumbs.
+- **Course/flow pages:** course-creation, clarification, cost-approval, build/population
+  (`kind="page"`), the dashboard and user-data view (`kind="course"`).
+
+Behaviour: voting is **optimistic** and **idempotent** — clicking the same thumb again clears
+the vote, the other flips it. A **thumbs-down invites an optional inline note** ("what went
+wrong?") that is posted with the vote and guardrail-checked. It is visually quiet (small,
+greyscale until active) so it never competes with the primary content.
+
+## 10. User-level data view (`/me`)
+
+A dedicated page, linked from the sidebar (**"📊 My learning data"**), that renders the
+`user_dossier` (`06 §9`) — **everything the system holds about this learner in one place**:
+
+- a header card with the learner's **name**, id, join date and course count;
+- a prominent **"last course — end-to-end token cost"** card for the most recently active
+  course, broken into **content scouting / content creation / Q&A feedback** buckets plus total
+  tokens (the "how much did the last course cost end to end" request);
+- then, per course (collapsible, newest first): the **prompt** they entered, currency mode and
+  status, that course's cost grid, their **preference answers**, and a table of **every question
+  asked with their response** (type, DL, question, their answer, correct/band, score).
+
+Read-only; it's a record, not an editor. Each course row also carries a thumbs (`§9`).

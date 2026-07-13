@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
 import AppFeedback from "../components/AppFeedback.jsx";
+import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
 
 // Progress & weakness dashboard + final feedback page (spec 07 §6/§7).
 export default function Dashboard() {
@@ -29,6 +30,10 @@ export default function Dashboard() {
     <div className="wrap">
       <h1 className="title">{d.title}</h1>
       <p className="lead">Total score across this course: <strong>{d.total_score}</strong></p>
+
+      <div className="thumbs-bar" style={{ marginTop: 0 }}>
+        <ThumbsFeedback kind="course" id={courseId} label="How was this course overall?" />
+      </div>
 
       <h2 className="sub">Where you're making mistakes</h2>
       {d.weaknesses.length === 0 ? <p className="note">No weaknesses recorded yet.</p> : (

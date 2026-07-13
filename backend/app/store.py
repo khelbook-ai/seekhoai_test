@@ -37,6 +37,81 @@ def get_user(user_id: str) -> dict | None:
                         "signals": prof["signals"]} if prof else None}
 
 
+def user_dossier(user_id: str) -> dict | None:
+    """Everything we hold about one learner, in one place (spec 06 §9). A single record that
+    starts with the user's name, then — per course — the prompt they entered, their answers to
+    the preference (clarification) questions, every question asked and their response to it, and
+    the end-to-end token cost of building + running that course. Powers the user-level DB view.
+    """
+    from app import metrics
+
+    u = fetchone("SELECT id, name, created_at FROM users WHERE id = %s", (user_id,))
+    if not u:
+        return None
+
+    courses = fetchall(
+        "SELECT id, title, raw_prompt, currency_mode, status, cost_estimate, cost_actual, created_at "
+        "FROM courses WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+
+    out_courses: list[dict] = []
+    last_completed_id: str | None = None
+    for c in courses:
+        cid = str(c["id"])
+        prefs = fetchall(
+            "SELECT ordinal, question, options, answer, multi_select FROM clarification_qas "
+            "WHERE course_id = %s ORDER BY ordinal", (cid,))
+        # Every question this learner was asked in this course + how they responded (all sessions).
+        qa = fetchall(
+            """SELECT i.type, i.dl, i.question_md, i.role, s.name subtopic, t.name topic,
+                      r.user_answer, r.is_correct, r.band, r.score_awarded, r.hints_used,
+                      r.responded_at
+               FROM responses r
+               JOIN sessions se ON r.session_id = se.id
+               JOIN interactions i ON r.interaction_id = i.id
+               JOIN subtopics s ON i.subtopic_id = s.id
+               JOIN topics t ON s.topic_id = t.id
+               WHERE se.user_id = %s AND t.course_id = %s
+               ORDER BY r.responded_at""",
+            (user_id, cid))
+        cost = metrics.full_course_cost(cid)
+        answered = sum(1 for r in qa if r["responded_at"] is not None)
+        if answered and last_completed_id is None:
+            last_completed_id = cid   # courses are newest-first, so the first with activity wins
+        out_courses.append({
+            "course_id": cid,
+            "title": c["title"],
+            "raw_prompt": c["raw_prompt"],
+            "currency_mode": c["currency_mode"],
+            "status": c["status"],
+            "created_at": c["created_at"].isoformat() if c["created_at"] else None,
+            "cost_estimate": (c["cost_estimate"] or {}).get("total_estimate")
+                              if isinstance(c["cost_estimate"], dict) else None,
+            "cost_actual": float(c["cost_actual"]) if c["cost_actual"] is not None else None,
+            "cost": cost,
+            "preferences": [
+                {"question": p["question"], "answer": p["answer"],
+                 "multi_select": bool(p["multi_select"]), "options": p["options"]}
+                for p in prefs],
+            "questions": [
+                {"type": q["type"], "dl": q["dl"], "role": q["role"], "topic": q["topic"],
+                 "subtopic": q["subtopic"], "question_md": q["question_md"],
+                 "your_answer": q["user_answer"], "is_correct": q["is_correct"],
+                 "band": q["band"], "score_awarded": q["score_awarded"],
+                 "hints_used": q["hints_used"],
+                 "answered_at": q["responded_at"].isoformat() if q["responded_at"] else None}
+                for q in qa],
+        })
+
+    return {
+        "user_id": str(u["id"]),
+        "name": u["name"],
+        "created_at": u["created_at"].isoformat() if u["created_at"] else None,
+        "course_count": len(out_courses),
+        "last_completed_course_id": last_completed_id,
+        "courses": out_courses,
+    }
+
+
 def save_user_profile(user_id: str, summary_md: str, directives, signals) -> None:
     execute(
         """INSERT INTO user_profiles (user_id, summary_md, directives, signals, updated_at)

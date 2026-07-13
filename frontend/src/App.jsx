@@ -8,6 +8,7 @@ import CostApproval from "./screens/CostApproval.jsx";
 import Population from "./screens/Population.jsx";
 import Learning from "./screens/Learning.jsx";
 import Dashboard from "./screens/Dashboard.jsx";
+import UserData from "./screens/UserData.jsx";
 import { currentUser } from "./api.js";
 
 function Layout({ user, onSignOut }) {
@@ -31,6 +32,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout user={user} onSignOut={signOut} />}>
         <Route path="/" element={<CourseCreation />} />
+        <Route path="/me" element={<UserData />} />
         <Route path="/course/:courseId/clarify" element={<Clarification />} />
         <Route path="/course/:courseId/cost" element={<CostApproval />} />
         <Route path="/course/:courseId" element={<Population />} />

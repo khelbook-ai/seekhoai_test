@@ -435,3 +435,66 @@ item **unanswerable**. This must be structurally impossible:
 
 Content feedback (the `.md` tree, `§2`) is the primary signal for finding such defects; each
 finding should map to either a spec change or an enforced invariant like this one.
+
+---
+
+## 8. Thumbs up/down reactions (low-friction feedback everywhere)
+
+Prose feedback (`§2`) is high-signal but high-effort, so most learners never leave any. To
+collect signal **in as many places as possible**, every meaningful surface also carries a
+one-click **thumbs up / thumbs down**. This is a distinct, lightweight channel — not a
+replacement for `content_feedback` / `application_feedback`.
+
+**Table `reactions`** (migration `0009`):
+
+| column | meaning |
+|--------|---------|
+| `user_id` | who voted (nullable; the signup gate means it's usually set) |
+| `target_kind` | what was voted on: `interaction` (a whole question), `content` (its content panel), `hint`, `answer_feedback` (Q&A grading), `course`, `dashboard`, `page` |
+| `target_id` | the interaction id / course id / page key (`''` for a global target) |
+| `value` | `1` = up, `-1` = down |
+| `note` | optional free text (invited on a thumbs-down); guardrail-checked before storage |
+| `created_at` / `updated_at` | first vote / last change |
+
+- **One vote per `(user_id, target_kind, target_id)`** — a unique index; re-voting flips or
+  clears the stored value instead of piling up rows (`ON CONFLICT … DO UPDATE`).
+- **Endpoint:** `POST /api/feedback/reaction { target_kind, target_id, value, note?, user_id? }`.
+  Notes pass through the same guardrail as other free-text inputs (`03 §0`).
+- **UI:** a reusable `ThumbsFeedback` component (spec `07 §9`), dropped on the question, its
+  content and hint panels, the answer feedback, the course/dashboard, the user-data view, and
+  the course-creation / clarification / cost / build pages. Voting is optimistic and idempotent.
+
+## 9. User-level data record (one place for everything)
+
+A single read-model, `store.user_dossier(user_id)`, assembles **everything the system holds
+about one learner** — the request behind the user-level DB view (`07 §10`). It is a pure
+aggregation over existing tables (no new storage beyond `reactions`):
+
+1. **User** — name, id, join date, course count.
+2. **Per course**, newest first: `course_id`, title, the **prompt** they entered, currency
+   mode, status; their **answers to the preference (clarification) questions**; **every
+   question asked and their response to it** (type, DL, question text, their answer, correct/
+   band, score, hints) across all their sessions on that course; and the course's **end-to-end
+   token cost** (`§5`, below).
+3. **`last_completed_course_id`** — the most recent course the learner has actually answered
+   questions in, surfaced so its total cost can be shown prominently (the "last course cost"
+   request).
+
+**Endpoint:** `GET /api/users/{user_id}/dossier`.
+
+### End-to-end token cost (build **and** runtime)
+
+`metrics.full_course_cost(course_id)` returns the *total* token spend attributable to a course,
+not just the build. Build-phase rows in `generation_metrics` carry `course_id` directly;
+**runtime** spend (Q&A grading, root-cause probe generation) only carries `interaction_id`, so
+the aggregation also folds in any metrics whose interaction belongs to the course. Each row is
+counted once. Output includes total cost, tokens in/out, call count, a per-`phase` breakdown,
+and three learner-facing **buckets**:
+
+- `scouting` — content scouting/intake/audit (finding & vetting sources),
+- `creation` — generation + checking + verification (writing & checking the content),
+- `qa_feedback` — runtime Q&A grading + follow-up probe generation,
+- (`other` catches anything unmapped.)
+
+This is what the user-data view and dashboard show as "how much did this course cost end to
+end, including content scouting, content creation, and tokens spent in Q&A feedback."

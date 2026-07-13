@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import MarkdownView from "../components/MarkdownView.jsx";
 import FeedbackWidget from "../components/FeedbackWidget.jsx";
+import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
 import CodeWalkthrough from "../components/CodeWalkthrough.jsx";
 import Zoomable from "../components/Zoomable.jsx";
 import OrderSteps from "../components/interactions/OrderSteps.jsx";
@@ -130,6 +131,7 @@ export default function Learning() {
     pct: map.total ? Math.round((map.answered / map.total) * 100) : 0 } : null);
 
   const wide = (it && it.type === "walkthrough") || (review && review.type === "walkthrough");
+  const activeDl = review?.dl || it?.dl || null;
 
   return (
     <div className="learn">
@@ -157,7 +159,67 @@ export default function Learning() {
           : <Complete score={score} onDash={() => nav(`/course/${courseId}/dashboard?session=${sid}`)}
               onOverview={() => nav(`/course/${courseId}`)} />}
       </div>
+      {!wide && map && (it || review) && (
+        <MetricsAside map={map} prog={prog} score={score} dl={activeDl} workingDl={it?.working_dl} />
+      )}
     </div>
+  );
+}
+
+// --- right-side live metrics (spec 07 §2): fills the previously-empty right column with the
+// numbers a learner cares about mid-session — difficulty, completion, score, accuracy.
+const DL_NAME = { 1: "Easy", 2: "Medium", 3: "Hard" };
+function MetricsAside({ map, prog, score, dl, workingDl }) {
+  const items = map.groups.flatMap((g) => g.items).filter((x) => x.status !== "reviewed");
+  const attempted = items.filter((x) => x.status === "correct" || x.status === "wrong");
+  const correct = attempted.filter((x) => x.status === "correct").length;
+  const acc = attempted.length ? Math.round((100 * correct) / attempted.length) : null;
+  const pct = prog?.pct ?? (map.total ? Math.round((100 * map.answered) / map.total) : 0);
+  const topics = prog?.topic_count;
+
+  return (
+    <aside className="learn-aside">
+      <div className="m-head">Your session</div>
+
+      <div className="m-ring">
+        <div className="ring" style={{ "--pct": pct }}><span>{pct}%</span></div>
+        <div>
+          <div className="m-k">Completion</div>
+          <div className="m-sub">{prog?.answered ?? map.answered}/{prog?.total ?? map.total} done</div>
+        </div>
+      </div>
+
+      {dl && (
+        <div className="metric">
+          <div className="m-k">Difficulty</div>
+          <span className={"m-diff dl" + dl}>{DL_NAME[dl] || `DL${dl}`}</span>
+          {workingDl && workingDl !== dl && (
+            <div className="m-sub">adapting toward {DL_NAME[workingDl] || `DL${workingDl}`}</div>
+          )}
+        </div>
+      )}
+
+      <hr className="divider" />
+
+      <div className="m-split">
+        <div><div className="m-k">Score</div><div className="m-v">{score}</div></div>
+        <div><div className="m-k">Accuracy</div><div className="m-v">{acc === null ? "—" : `${acc}%`}</div></div>
+      </div>
+
+      <hr className="divider" />
+
+      <div className="metric">
+        <div className="m-k">Questions right</div>
+        <div className="m-v">{correct}<span className="m-sub"> / {attempted.length || 0} answered</span></div>
+      </div>
+      {topics != null && (
+        <div className="metric">
+          <div className="m-k">Topics</div>
+          <div className="m-v">{topics}</div>
+          {prog?.current_topic && <div className="m-sub">now: {prog.current_topic}</div>}
+        </div>
+      )}
+    </aside>
   );
 }
 
@@ -257,6 +319,7 @@ function ReviewPanel({ r, onBack }) {
       {r.feedback_md && <div className="panel box"><h3>Feedback on your answer</h3><MarkdownView>{r.feedback_md}</MarkdownView></div>}
       {r.model_answer && <div className="panel box"><h3>Correct answer</h3><MarkdownView>{r.model_answer}</MarkdownView></div>}
       {r.content_md && <div className="panel box"><h3>Content</h3><MarkdownView>{r.content_md}</MarkdownView></div>}
+      <div className="thumbs-bar"><ThumbsFeedback kind="interaction" id={r.id} label="Was this question useful?" /></div>
     </div>
   );
 }
@@ -295,11 +358,16 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
           {hintsLeft > 0 ? `Hint (${hintsUsed + 1} of ${it.hints_available || 3}, −1)` : "No hints left"}
         </button>
       </div>
-      {content && <div className="panel box"><h3>Content</h3><MarkdownView>{content}</MarkdownView></div>}
+      {content && (
+        <div className="panel box"><h3>Content</h3><MarkdownView>{content}</MarkdownView>
+          <div className="thumbs-bar"><ThumbsFeedback kind="content" id={it.id} label="Was this explanation clear?" /></div>
+        </div>
+      )}
       {ladder.length > 0 && (
         <div className="panel box hints-box">
           {ladder.map((h) => <div key={h.level} className="hint-rung"><h3>Hint {h.level}</h3>
             <MarkdownView>{h.text_md}</MarkdownView></div>)}
+          <div className="thumbs-bar"><ThumbsFeedback kind="hint" id={it.id} label="Did the hints help?" /></div>
         </div>
       )}
 
@@ -363,6 +431,7 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
             <div className="panel" style={{ marginTop: 16 }}>
               <h3>Feedback on your answer</h3><MarkdownView>{result.feedback_md}</MarkdownView>
               {result.rubric_misses?.length > 0 && <p className="note">Missed: {result.rubric_misses.join("; ")}</p>}
+              <div className="thumbs-bar"><ThumbsFeedback kind="answer_feedback" id={it.id} label="Was this grading fair?" /></div>
             </div>
           )}
           {it.type === "qa" && !it.model_answer && result.model_answer && (
@@ -375,6 +444,9 @@ function Question({ it, selected, setSelected, answerText, setAnswerText, richRe
           </button>
         </div>
       )}
+      <div className="thumbs-bar">
+        <ThumbsFeedback kind="interaction" id={it.id} label="Was this question useful?" />
+      </div>
       <FeedbackWidget interactionId={it.id} />
     </div>
   );

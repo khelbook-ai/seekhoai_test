@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
+import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
 
 // Format minutes as "~45 min" or "~1h 20m".
 export function fmtMins(m) {
@@ -108,6 +109,9 @@ export default function CostApproval() {
           <button className="btn" onClick={() => nav(`/course/${courseId}`)}>Go to build</button>
         </div>
       )}
+      <div className="thumbs-bar">
+        <ThumbsFeedback kind="page" id={`cost:${courseId}`} label="Is the estimated cost & curriculum reasonable?" />
+      </div>
     </div>
   );
 }

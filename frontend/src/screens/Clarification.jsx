@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
+import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
 
 // Clarification questions as tappable option chips (spec 07 §3). ≤10, often fewer.
 // A question may be multi-select (spec 01 §3) — e.g. "which areas of RL matter to you?" —
@@ -104,6 +105,11 @@ export default function Clarification() {
         <button className="btn" disabled={busy || !allAnswered} onClick={submit}>
           {busy ? <><span className="spin" /> Designing your curriculum…</> : "Continue"}
         </button>
+      )}
+      {questions.length > 0 && (
+        <div className="thumbs-bar">
+          <ThumbsFeedback kind="page" id={`clarify:${courseId}`} label="Were these questions relevant?" />
+        </div>
       )}
     </div>
   );

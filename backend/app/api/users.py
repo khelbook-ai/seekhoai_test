@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.agents import personalize
-from app.store import create_user, get_user
+from app.store import create_user, get_user, user_dossier
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -26,6 +26,16 @@ def profile(user_id: str) -> dict:
     if not u:
         raise HTTPException(404, "user not found")
     return u
+
+
+@router.get("/{user_id}/dossier")
+def dossier(user_id: str) -> dict:
+    """User-level DB: name + every course, prompt, preference answer, question/response and the
+    end-to-end token cost, in one record (spec 06 §9)."""
+    d = user_dossier(user_id)
+    if d is None:
+        raise HTTPException(404, "user not found")
+    return d
 
 
 @router.post("/{user_id}/refresh-profile")

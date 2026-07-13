@@ -20,6 +20,7 @@ export const api = {
   // users
   signup: (name) => post("/api/users", { name }),
   getUser: (id) => get(`/api/users/${id}`),
+  dossier: (id = uid()) => get(`/api/users/${id}/dossier`),
 
   // build
   listCourses: () => get(`/api/courses${uid() ? `?user_id=${uid()}` : ""}`),
@@ -53,4 +54,7 @@ export const api = {
     return fetch("/api/feedback/content/upload", { method: "POST", body: fd }).then(j);
   },
   appFeedback: (page_key, feedback_md) => post("/api/feedback/application", { page_key, feedback_md }),
+  // one-click thumbs up/down, droppable anywhere (value: 1 up, -1 down)
+  reaction: (target_kind, target_id, value, note) =>
+    post("/api/feedback/reaction", { target_kind, target_id, value, note, user_id: uid() }),
 };

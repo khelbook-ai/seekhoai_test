@@ -107,6 +107,23 @@ def save_content_feedback(
     return str(path)
 
 
+def save_reaction(*, user_id: str | None, target_kind: str, target_id: str,
+                  value: int, note: str | None) -> dict:
+    """Persist a one-click thumbs up/down (spec 06 §8). Re-voting the same target flips the
+    stored value rather than piling up rows (per-user unique on target)."""
+    target_id = (target_id or "")[:200]
+    row = execute(
+        """INSERT INTO reactions (user_id, target_kind, target_id, value, note)
+           VALUES (%s,%s,%s,%s,%s)
+           ON CONFLICT (user_id, target_kind, target_id)
+           DO UPDATE SET value = EXCLUDED.value, note = COALESCE(EXCLUDED.note, reactions.note),
+                         updated_at = now()
+           RETURNING id, value""",
+        (user_id, target_kind, target_id, 1 if value >= 0 else -1, (note or None)),
+    )
+    return {"reaction_id": str(row["id"]), "value": int(row["value"])}
+
+
 def save_application_feedback(*, page_key: str, user_id: str | None, feedback_md: str,
                              image_links: list[dict] | None = None) -> str:
     row = execute(
