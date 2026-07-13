@@ -258,13 +258,28 @@ Validates MCQ **structure** across the whole subtopic/course. Mostly determinist
 - **Exactly 4 options** per MCQ.
 - **Answer-position variety** — the correct answer must not sit at the same label (A/B/C/D)
   repeatedly. Enforce a near-uniform distribution across each subtopic; shuffle to fix.
-- **Length balance** — correct and incorrect options must have comparable length *in
-  aggregate*. It must not be the case that the correct option is systematically longer
-  (a common give-away). Check mean/though also flag per-item outliers.
+- **Length balance** — correct and incorrect options must have comparable length. It must
+  not be the case that the correct option is the longest choice (a common give-away). This
+  is enforced **deterministically**, not left to the LLM validator (which repeatedly let it
+  through — content feedback reported "the correct option is always the longest choice"):
+  - A pure-Python function measures the character length of **every option** and flags an
+    item when the correct option is the longest AND overshoots the longest distractor by
+    more than a fixed ratio (`LENGTH_GIVEAWAY_RATIO`, default 1.25).
+  - On a flag it returns a concrete **fix hint** naming the short distractors and the target
+    length, instructing the generator to **extend the distractors** (add plausible detail)
+    up to the correct option's length — never to shorten the correct option.
+  - This runs **per item inside the generate→check regen loop, before the LLM domain/verify
+    passes**, so a give-away is caught cheaply and rewritten within the retry budget. An
+    aggregate mean check across the subtopic remains as a secondary tell.
+  - Length is only a *proxy* for the deeper tell learners reported ("the technically worded
+    option is the answer", "even the wrong options need to sound fancy"). The **register**
+    give-away — the correct option being the most precise / most jargon-dense / most
+    "textbook-sounding" choice while distractors read as naive — is semantic, not measurable
+    by character count, so it is judged by the Content Verification agent (§10), not here.
 - Options are mutually exclusive, plausible distractors, text-only (no diagrams).
 
 **Output:** pass, or a list of violations with an auto-fix (reshuffle/rebalance) or a regen
-request when content-level rewrite is needed.
+request (with the length fix hint) when content-level rewrite is needed.
 
 ---
 
@@ -291,6 +306,11 @@ correlated errors.
 - Is the stated correct answer actually correct?
 - Are definitions/explanations in the content panel accurate and current?
 - Do distractors avoid being accidentally-correct?
+- **Register parity (MCQ):** is the correct option guessable purely by wording — the most
+  technically-worded / most precise / "textbook-sounding" choice while distractors read as
+  naive or under-specified? On `fail`, request distractors rewritten at the same technical
+  register as the correct answer. (Option *length* is enforced deterministically by the
+  Option Checker §8; this catches the semantic sophistication tell length can't measure.)
 - Are diagram claims consistent with the question?
 
 **Output:** `{verdict: pass|fail, issues: [...], suggested_fix}`. On `fail`, request regen

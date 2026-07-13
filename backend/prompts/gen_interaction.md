@@ -26,7 +26,11 @@ the answer with a brief why.
 Return ONLY JSON. Include `type`, `question_md`, `content_panel_md`, `hints`, and EXACTLY the
 fields for the chosen type:
 
-mcq:
+mcq (all 4 options must be comparable in length AND technical register — the correct option
+must NOT be the longest choice NOR the most technically-worded/"textbook-sounding" one; give
+distractors the same detail, character count, and jargon density so the answer can't be
+guessed by picking the longest or fanciest-sounding one. A deterministic checker rejects
+items where the correct option is longest):
 {{ "type":"mcq", "question_md":"…", "content_panel_md":"…", "hints":["…","…","…"],
    "options":[{{"label":"A","text":"…","is_correct":false}}, …4 total, one correct… ] }}
 

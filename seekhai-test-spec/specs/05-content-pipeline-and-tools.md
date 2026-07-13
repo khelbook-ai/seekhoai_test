@@ -227,9 +227,9 @@ Real paper figures can therefore be attached to questions, with provenance recor
 
 | Checker | Guarantees |
 |---------|-----------|
-| **Option Checker** | 4 options; answer position varied; correct/incorrect lengths balanced in aggregate; plausible distractors; text-only options |
+| **Option Checker** | 4 options; answer position varied; **deterministic per-item length balance** — the correct option must not be the longest choice (Python measures each option's length, regens with a "extend the distractors" hint above a fixed ratio); plausible distractors; text-only options |
 | **Domain Checker** | Content framed in the persona's domain grounding; regen if drifted |
-| **Content Verification (Gemini)** | Factual accuracy of answers, definitions, content panels — checked against Content Package sources, independent model family |
+| **Content Verification (Gemini)** | Factual accuracy of answers, definitions, content panels — checked against Content Package sources, independent model family; also **register parity** (MCQ answer not guessable by being the most technically-worded option) |
 
 ---
 

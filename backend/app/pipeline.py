@@ -187,6 +187,19 @@ def _one_interaction(spec: dict, st: dict, package: dict, intent: dict,
         events.emit(course_id, "generation", "generate",
                     f"generated {label} for '{st['name']}'" + (f" (regen {attempt})" if attempt else ""))
 
+        # Deterministic length-balance gate (spec 03 §8): the LLM validator kept letting the
+        # correct option be the longest choice (content feedback: "the correct option is
+        # always the longest"). Check it in code and regen with a concrete fix hint BEFORE the
+        # costly LLM domain/verify passes, so a give-away item is cheap to catch and rewrite.
+        if item["_type"] == "mcq":
+            lb = option.length_report(item)
+            if not lb["balanced"] and attempt < max_retries:
+                events.emit(course_id, "checking", "check",
+                            f"  ↳ correct option is a length give-away "
+                            f"({lb['correct_len']} chars) → regen (extend distractors)")
+                st = {**st, "description": st["description"] + " | fix: " + lb["fix_hint"]}
+                continue
+
         events.emit(course_id, "checking", "check", "Domain Checker (GLM) reviewing framing…")
         dom = semantic.domain_check(item, st, domain_grounding, course_id)
         if not dom.get("on_domain", True) and attempt < max_retries:

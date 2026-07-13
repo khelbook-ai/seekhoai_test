@@ -6,6 +6,11 @@ Check:
 - Is the stated correct answer actually correct?
 - Are the definitions/explanations in the content panel accurate and current?
 - Do the distractors avoid being accidentally-correct?
+- For MCQs, REGISTER PARITY: is the correct option guessable without knowing the material —
+  i.e. is it the most technically-worded / most precise / "textbook-sounding" option while
+  the distractors read as naive, vague, or under-specified? If so, fail and ask for
+  distractors rewritten at the same technical register/specificity as the correct answer.
+  (Option length is enforced deterministically elsewhere; you judge the WORDING/sophistication tell.)
 - Are any diagram claims consistent with the question?
 
 Subtopic: {subtopic_name}

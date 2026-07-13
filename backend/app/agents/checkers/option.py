@@ -1,6 +1,7 @@
 """Option Checker (spec 03 §8). Mostly deterministic MCQ structure validation across a
 subtopic: exactly 4 options, answer-position variety (reshuffle to near-uniform), and
-aggregate length balance (flag if the correct option is systematically longer).
+length balance (per-item + aggregate: flag when the correct option is the longest choice,
+a classic give-away, and hand the generator a concrete fix hint).
 
 Hard invariant (spec 06 §7): every persisted MCQ has EXACTLY 4 options and a non-null
 `answer_key`. Generators sometimes drift (e.g. return 5 options, or forget to flag the
@@ -12,6 +13,54 @@ from __future__ import annotations
 import random
 
 _LABELS = ["A", "B", "C", "D"]
+
+# A correct option longer than every distractor by more than this ratio is treated as a
+# length give-away (the LLM validator alone kept missing it — content feedback: "the
+# correct option is always the longest choice"). Deterministic, so it never slips through.
+LENGTH_GIVEAWAY_RATIO = 1.25
+
+
+def length_report(mcq: dict, *, ratio: float = LENGTH_GIVEAWAY_RATIO) -> dict:
+    """Deterministic per-item length analysis of an MCQ's options.
+
+    Computes the character length of every option and decides whether the correct option
+    is a length outlier — i.e. it is the longest choice AND overshoots the longest
+    distractor by more than `ratio`. When it is, returns a concrete `fix_hint` telling the
+    generator to EXTEND the shorter distractors (add plausible detail/qualifiers) up to the
+    correct option's length — never to shorten the correct option, which would drop
+    necessary precision.
+
+    Returns: {balanced: bool, correct_len: int, longest_distractor_len: int,
+              option_lens: [(label, len, is_correct), ...], fix_hint: str | None}.
+    """
+    opts = mcq.get("options", [])
+    lens = [((o.get("label") or (_LABELS[i] if i < 4 else str(i))),
+             len((o.get("text") or "").strip()),
+             bool(o.get("is_correct")))
+            for i, o in enumerate(opts)]
+    correct = [(lbl, n) for (lbl, n, c) in lens if c]
+    distractors = [(lbl, n) for (lbl, n, c) in lens if not c]
+    if not correct or not distractors:
+        return {"balanced": True, "correct_len": correct[0][1] if correct else 0,
+                "longest_distractor_len": 0, "option_lens": lens, "fix_hint": None}
+
+    correct_len = correct[0][1]
+    longest_distractor = max(n for _, n in distractors)
+    balanced = correct_len <= longest_distractor * ratio
+    if balanced:
+        return {"balanced": True, "correct_len": correct_len,
+                "longest_distractor_len": longest_distractor, "option_lens": lens, "fix_hint": None}
+
+    short = [lbl for lbl, n in distractors if n < correct_len]
+    fix_hint = (
+        f"LENGTH BALANCE — the correct option is {correct_len} characters, the longest "
+        f"choice (longest distractor is {longest_distractor}); this gives the answer away. "
+        f"Extend distractor(s) {', '.join(short)} to roughly {correct_len} characters each "
+        f"by adding plausible, self-consistent detail or qualifiers. Do NOT shorten or "
+        f"weaken the correct option. All four options must be comparable in length."
+    )
+    return {"balanced": False, "correct_len": correct_len,
+            "longest_distractor_len": longest_distractor, "option_lens": lens, "fix_hint": fix_hint}
 
 
 def _item_ok(mcq: dict) -> list[str]:
@@ -104,7 +153,16 @@ def check_and_fix(mcqs: list[dict], *, rng: random.Random | None = None) -> dict
         mcq["options"] = ordered
         mcq["answer_key"] = want
 
-    # aggregate length balance
+    # per-item length balance: flag any MCQ whose correct option is a length give-away
+    for i, mcq in enumerate(mcqs):
+        lr = length_report(mcq)
+        if not lr["balanced"]:
+            violations.append(
+                f"item {i}: correct option is a length give-away "
+                f"({lr['correct_len']} chars vs longest distractor {lr['longest_distractor_len']}) "
+                "— extend distractors to balance")
+
+    # aggregate length balance (subtopic-wide tell, even when no single item trips the ratio)
     correct_lens, incorrect_lens = [], []
     for mcq in mcqs:
         for o in mcq.get("options", []):

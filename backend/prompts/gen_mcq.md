@@ -13,8 +13,20 @@ Content Package (definitions, key claims, source excerpts):
 
 Requirements:
 - Exactly 4 options; exactly one correct. Options are TEXT ONLY (no diagrams).
-- Distractors must be plausible and mutually exclusive; do not make the correct option
-  systematically longer than the others.
+- Distractors must be plausible and mutually exclusive.
+- LENGTH BALANCE (critical): all four options must be comparable in length. The correct
+  option must NOT be the longest choice — that is a dead give-away. Write each distractor
+  with the same level of detail and roughly the same character count as the correct option
+  (add plausible qualifiers/specifics to short distractors rather than trimming the correct
+  one). A deterministic checker measures each option's length and will send the item back
+  for regeneration if the correct option is the longest.
+- REGISTER PARITY (critical): the correct option must NOT be the most technically-worded /
+  precise / "textbook-sounding" choice. A learner should not be able to pick the answer just
+  by choosing the one that "sounds the most sophisticated." Give the distractors the SAME
+  technical register, jargon density, and specificity as the correct answer — each wrong
+  option must read like a confident, expert-sounding definition that is nonetheless factually
+  wrong (wrong mechanism, wrong scope, subtly wrong detail). Avoid distractors that are
+  obviously naive, vague, or under-specified relative to the correct one.
 - The content panel is a personalized "how it works / what it is" explanation for THIS
   question and persona — not a generic dump.
 - Three escalating hints: (1) general nudge that does NOT reveal the answer,
