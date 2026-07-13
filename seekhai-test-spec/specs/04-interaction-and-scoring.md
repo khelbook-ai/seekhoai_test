@@ -226,4 +226,58 @@ checkers:
   max_regen_retries: 2
 cost:
   buffer_pct: 15
+chat:                         # in-course study assistant (§9)
+  query_char_limit: 300
+  answer_char_limit: 2000     # generous backstop only — the assistant answers for quality
+  top_k: 5
 ```
+
+---
+
+## 9. In-course study assistant
+
+A purely-text chatbot, available on the learning screen **once the learner has started the
+questions** (i.e. a session exists). It answers the learner's free-text questions — checking the
+current course's material first, then giving the best answer it can.
+
+**Check the course material first (RAG).** For every question the assistant retrieves from the
+**current course's own knowledge base** (`06 §6`, persisted content, no regeneration): subtopic
+names/descriptions, per-interaction **content panels**, question text + pre-generated **model
+answers**, and the **correct MCQ option** text. Retrieval is a lightweight **in-process BM25**
+(top-k, `k≈5`) — it spends **no tokens**.
+
+**Recall of rare terms (required).** BM25's top-k is followed by a **term-coverage pass**: for
+each *discriminating* query term that exists **anywhere** in the course, at least one chunk
+containing it is pulled into the retrieved set (up to a small cap), even if chunks matching
+several *other* query words outscored it — otherwise a term living in a *different* subtopic than
+the rest of the question loses the ranking and the assistant would wrongly conclude the course
+doesn't cover it.
+
+**Answer for quality, course-first (product decision).** The retrieved passages plus the question
+go to **GLM 5.2** (`course_chat` in `models.yaml`). The assistant is told to **prefer and stay
+consistent with the course material**, but it may **go beyond the course using its own knowledge
+whenever that yields a better, more complete or more correct answer** — e.g. explaining a concept
+the course only mentions, comparing the course's ideas to a tool/framework the course doesn't
+cover, or correcting a misconception. When it draws on knowledge **not** in the course material it
+**signals that** ("Beyond what this course covers, …") so the learner can tell course content from
+wider context; it must never claim the course covers something absent from the CONTEXT, nor claim
+it omits something present. Accuracy comes first. (This deliberately replaces the earlier
+strictly-grounded/refuse behaviour — answer quality was chosen over token cost.) The `chat`-phase
+cost is recorded to `generation_metrics` and folds into the **Q&A-feedback** bucket (`06 §9`).
+
+**Limits.** The learner's **question is capped at 300 characters** (UI *and* server-side). The
+answer length is **no longer tightly capped** — a generous 2000-char server backstop only — since
+the goal is the best answer, not the cheapest.
+
+**Persistent, per-learner history (required).** The assistant is **one assistant per learner**,
+not per course: every exchange (question + answer, with the course it was asked in, a timestamp,
+and the course subtopics consulted) is stored in `assistant_messages` (`06 §10`). The panel
+**restores the full conversation on open/refresh** and shows the learner's questions **across all
+their courses**, each labelled with its course name and date/time.
+
+**Endpoints & safety.** `POST /api/sessions/{session_id}/chat { query }` — the session authorises
+the call, pins the course, and identifies the learner (for history). The query passes the **prompt
+guardrail** (`03 §0`) at the `chat` entry point (neutralised, not blocked). Response:
+`{ answer, grounded, sources, id, created_at, course_name }`. `GET /api/users/{user_id}/chat`
+returns the learner's whole history. The UI (`07 §2`) is a small docked chat panel with a 300-char
+counter; each answer carries a 👍/👎 (`06 §8`).

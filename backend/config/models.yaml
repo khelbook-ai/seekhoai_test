@@ -40,6 +40,10 @@ agents:
   # learner's submit path, so it runs on a genuinely fast model. Revert to z-ai/glm-5.2 here
   # if grading quality ever drifts.
   qa_grader:              { provider: openrouter, model: google/gemini-2.5-flash, class: fast }
+  # In-course study assistant (spec 04 §9). Retrieval is in-process (no tokens); the assistant
+  # checks the course's own material first, then answers with GLM 5.2 — free to go beyond the
+  # course when that yields a better answer (per product decision; answer quality over cost).
+  course_chat:            { provider: openrouter, model: z-ai/glm-5.2,           class: strong }
   # live web search — OpenRouter's built-in web plugin (Exa-backed), high quality (05 §2)
   web_search:             { provider: openrouter, model: z-ai/glm-5.2,           class: search }
   # INDEPENDENT model families (deliberately not GLM) — spec 03 §5b / §10

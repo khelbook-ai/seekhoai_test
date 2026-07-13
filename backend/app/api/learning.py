@@ -127,6 +127,38 @@ def submit_answer(session_id: str, req: AnswerReq) -> dict:
         raise HTTPException(404, "interaction not found")
 
 
+class ChatReq(BaseModel):
+    query: str
+
+
+CHAT_QUERY_MAX = 300  # keep the learner's question short to bound retrieval + answer tokens
+
+
+@router.post("/sessions/{session_id}/chat")
+def course_chat(session_id: str, req: ChatReq) -> dict:
+    """Course-scoped RAG study assistant (spec 04 §12). Available once the learner has a session
+    (i.e. started the questions). Searches ONLY this course's knowledge base and answers in
+    ≤400 chars; the query is capped at 300 chars. Purely text."""
+    sess = fetchone("SELECT course_id, user_id FROM sessions WHERE id = %s", (session_id,))
+    if sess is None:
+        raise HTTPException(404, "session not found")
+    user_id = str(sess["user_id"]) if sess["user_id"] else None
+    g = check(req.query, "chat", user_id=user_id)          # guard/sanitise free text (03 §0)
+    query = g.sanitized_text[:CHAT_QUERY_MAX]
+    if not query.strip():
+        raise HTTPException(400, "empty question")
+    from app import chat
+    return chat.answer(str(sess["course_id"]), query, user_id=user_id, session_id=session_id)
+
+
+@router.get("/users/{user_id}/chat")
+def chat_history(user_id: str) -> dict:
+    """The learner's whole course-assistant history across all their courses (spec 06 §10),
+    so the panel can restore the conversation after a refresh."""
+    from app import chat
+    return {"messages": chat.history(user_id)}
+
+
 @router.get("/courses/{course_id}/dashboard")
 def dashboard(course_id: str, session_id: str | None = None) -> dict:
     try:

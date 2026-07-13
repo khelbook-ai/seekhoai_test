@@ -41,6 +41,9 @@ export const api = {
   getHint: (sid, interaction_id, level) => post(`/api/sessions/${sid}/hint`, { interaction_id, level }),
   getContent: (sid, interaction_id) => post(`/api/sessions/${sid}/content`, { interaction_id }),
   submitAnswer: (sid, payload) => post(`/api/sessions/${sid}/answer`, payload),
+  // course study assistant: checks course material, answers with GLM 5.2 (query capped at 300)
+  chat: (sid, query) => post(`/api/sessions/${sid}/chat`, { query }),
+  chatHistory: (id = uid()) => get(`/api/users/${id}/chat`),
   dashboard: (courseId, sid) => get(`/api/courses/${courseId}/dashboard${sid ? `?session_id=${sid}` : ""}`),
 
   // feedback

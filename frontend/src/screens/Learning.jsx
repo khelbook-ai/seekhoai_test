@@ -4,6 +4,7 @@ import { api } from "../api.js";
 import MarkdownView from "../components/MarkdownView.jsx";
 import FeedbackWidget from "../components/FeedbackWidget.jsx";
 import ThumbsFeedback from "../components/ThumbsFeedback.jsx";
+import CourseChat from "../components/CourseChat.jsx";
 import CodeWalkthrough from "../components/CodeWalkthrough.jsx";
 import Zoomable from "../components/Zoomable.jsx";
 import OrderSteps from "../components/interactions/OrderSteps.jsx";
@@ -162,6 +163,7 @@ export default function Learning() {
       {!wide && map && (it || review) && (
         <MetricsAside map={map} prog={prog} score={score} dl={activeDl} workingDl={it?.working_dl} />
       )}
+      {sid && <CourseChat sid={sid} />}
     </div>
   );
 }

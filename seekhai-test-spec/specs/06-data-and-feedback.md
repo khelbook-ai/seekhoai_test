@@ -493,8 +493,30 @@ and three learner-facing **buckets**:
 
 - `scouting` — content scouting/intake/audit (finding & vetting sources),
 - `creation` — generation + checking + verification (writing & checking the content),
-- `qa_feedback` — runtime Q&A grading + follow-up probe generation,
+- `qa_feedback` — runtime Q&A grading + follow-up probe generation **+ study-assistant (`chat`)**,
 - (`other` catches anything unmapped.)
 
 This is what the user-data view and dashboard show as "how much did this course cost end to
 end, including content scouting, content creation, and tokens spent in Q&A feedback."
+
+## 10. Course-assistant chat history
+
+The in-course study assistant (`04 §9`) is a **persistent, per-learner** assistant, so its whole
+conversation survives a refresh and spans **all** of a learner's courses. Every exchange is a row
+in **`assistant_messages`** (migration `0010`):
+
+| column | meaning |
+|--------|---------|
+| `user_id` | the learner (one assistant per user) |
+| `course_id` | the course the question was asked in — so each exchange can be labelled with its course name |
+| `session_id` | the learning session it was asked from (nullable) |
+| `question` | the learner's question (≤300 chars) |
+| `answer` | the assistant's reply |
+| `grounded` | whether the course's own material matched the question |
+| `sources` | the course subtopics consulted (jsonb) |
+| `created_at` | timestamp shown next to the exchange |
+
+- **`POST /api/sessions/{session_id}/chat`** persists the exchange as a side effect and echoes back
+  `id`, `created_at` and `course_name` so the UI can render it immediately.
+- **`GET /api/users/{user_id}/chat`** returns the learner's whole history (oldest first), each item
+  joined to its course title, so the panel restores the conversation on open/refresh (`07 §2`).

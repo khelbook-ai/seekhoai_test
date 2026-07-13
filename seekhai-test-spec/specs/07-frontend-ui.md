@@ -97,6 +97,15 @@ calls the grader and must never feel frozen), plus loading a session, a review, 
 feedback each carry a one-click **thumbs up/down** (`§9`, `06 §8`), so a learner can signal
 quality without writing prose.
 
+**In-course study assistant (required).** A small **docked, text-only chat panel** (a floating
+"💬 Ask about this course" button that expands) is available on the learning screen once a
+session exists. It **checks the current course's material first, then answers with GLM 5.2**,
+free to go beyond the course when that gives a better answer (`04 §9`). The question input is
+**hard-capped at 300 characters** with a live counter; the answer is not tightly capped. It is
+**one assistant per learner**: on open/refresh it **restores the full conversation**, showing the
+learner's questions **across all their courses**, each labelled with its **course name and
+date/time** (`06 §10`). Each answer shows which subtopics it consulted and carries a 👍/👎.
+
 **Richer interaction types.** The interaction area renders by `type` (`04 §1`): **`order`** —
 a reorderable step list (↑/↓); **`blanks`** — tap a word-bank chip to drop it into a blank, tap
 a blank to clear; **`dragdrop`** — **drag entities into labelled architecture boxes** (native

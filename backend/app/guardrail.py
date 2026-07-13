@@ -16,7 +16,9 @@ from app.prompts import render
 
 MAX_LEN = 8000
 _BLOCKING_POINTS = ("course_prompt", "clarify")
-_NEUTRALISE_POINTS = ("qa_answer", "content_feedback", "app_feedback")
+# `chat` is neutralised (sanitised, never hard-blocked): the RAG assistant is already confined
+# to the course's own knowledge base, so an off-topic question simply gets "not covered here".
+_NEUTRALISE_POINTS = ("qa_answer", "content_feedback", "app_feedback", "chat")
 
 _INJECTION = re.compile(
     r"(ignore (all|previous|the above) instructions|system prompt|you are now|"

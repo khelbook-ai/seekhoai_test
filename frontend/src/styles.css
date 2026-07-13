@@ -434,6 +434,42 @@ table.qa-log td.res.wrong { color: var(--incorrect); }
 .pref-row .q { color: var(--muted); font-size: 0.9rem; }
 .pref-row .a { font-weight: 600; }
 
+/* ---- in-course RAG study assistant (spec 04 §12, 07 §2) ---- */
+.coursechat { position: fixed; right: 20px; bottom: 20px; z-index: 900; }
+.cc-fab { border: none; border-radius: 999px; background: var(--accent); color: #fff; cursor: pointer;
+  padding: 12px 18px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+.cc-fab:hover { filter: brightness(1.06); }
+.cc-panel { width: 360px; max-width: calc(100vw - 32px); height: 520px; max-height: calc(100vh - 40px);
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: 0 12px 44px rgba(0,0,0,0.22); overflow: hidden; }
+.cc-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+  background: var(--accent); color: #fff; font-weight: 600; }
+.cc-x { background: none; border: none; color: #fff; font-size: 1.4rem; line-height: 1; cursor: pointer; padding: 0 4px; }
+.cc-note { font-size: 0.82rem; color: var(--muted); padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.cc-body { flex: 1 1 auto; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+.cc-empty { color: var(--muted); font-size: 0.9rem; font-style: italic; margin: auto 0; text-align: center; }
+.cc-ex { display: flex; flex-direction: column; gap: 6px; }
+.cc-ex-meta { display: flex; align-items: center; gap: 8px; justify-content: center; font-size: 0.72rem;
+  color: var(--muted); }
+.cc-ex-meta .cc-course { background: #e3ede9; color: var(--accent); border-radius: 999px;
+  padding: 1px 8px; font-weight: 600; }
+.cc-msg { display: flex; flex-direction: column; max-width: 88%; }
+.cc-msg.you { align-self: flex-end; align-items: flex-end; }
+.cc-msg.bot { align-self: flex-start; align-items: flex-start; }
+.cc-bubble { padding: 9px 12px; border-radius: 12px; font-size: 0.92rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.cc-msg.you .cc-bubble { background: #e3ede9; color: var(--ink); border-bottom-right-radius: 4px; }
+.cc-msg.bot .cc-bubble { background: #f1f0ec; color: var(--ink); border-bottom-left-radius: 4px; }
+.cc-msg.bot.err .cc-bubble { background: #fbf1f0; color: var(--incorrect); }
+.cc-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+.cc-src { font-size: 0.74rem; color: var(--muted); }
+.cc-input { border-top: 1px solid var(--line); padding: 10px 12px; }
+.cc-input textarea { width: 100%; resize: none; min-height: 54px; max-height: 90px; border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 0.92rem; }
+.cc-input-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.cc-input-row .btn { padding: 8px 16px; font-size: 0.9rem; }
+.cc-count { font-size: 0.76rem; color: var(--muted); }
+.cc-count.at-limit { color: var(--incorrect); font-weight: 600; }
+
 @media (max-width: 980px) {
   .learn-aside { display: none; }   /* metrics fold away before the rail on narrow screens */
 }

@@ -102,7 +102,7 @@ def full_course_cost(course_id: str) -> dict:
     _BUCKET = {
         "scouting": "scouting", "intake": "scouting", "audit": "scouting",
         "generation": "creation", "checking": "creation", "verification": "creation",
-        "grading": "qa_feedback", "followup": "qa_feedback",
+        "grading": "qa_feedback", "followup": "qa_feedback", "chat": "qa_feedback",
     }
     for phase, p in by_phase.items():
         buckets[_BUCKET.get(phase, "other")] += p["cost"]
