@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HTML = "file://" + path.join(__dirname, "seekhai-explainer.html");
 const OUT_DIR = path.join(__dirname, "out");
 const W = 1280, H = 720;
-const DURATION_MS = 168000; // full tour (~2:43) + a little tail
+const DURATION_MS = 178000; // full tour (~2:53) + a little tail
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
