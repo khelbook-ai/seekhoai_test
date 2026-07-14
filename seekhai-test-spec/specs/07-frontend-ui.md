@@ -208,6 +208,9 @@ landing page, so it must **sell the capability before asking for input**. Above 
   and why it's different without scrolling into the app.
 
 - Two big inputs: **"What do you want to learn?"** and **"What's your role?"**
+- **Or build from a file:** an "📎 Build from a PDF or slide deck" upload sits beside the
+  primary button — the learner can start a course from **their own PDF / slides / doc** and the
+  Architect builds the curriculum from it (`05 §12`).
 - The clarification stage is titled **"Student Input"** and **shows the learner's own prompt and
   role back to them** (what they asked to learn, their role, the currency mode) above the
   clarification questions — so the page that captures their intent actually displays it.

@@ -31,7 +31,8 @@ def build_curriculum(ctx: CourseContext) -> Curriculum:
                domain=ctx.domain_grounding.domain, must_ground=ctx.domain_grounding.must_ground,
                currency_mode=ctx.currency_mode, clarifications=clar,
                assumptions="; ".join(ctx.assumptions) or "(none)",
-               personalization=persona_note),
+               personalization=persona_note,
+               seed_material=(ctx.seed_material[:6000] if ctx.seed_material else "(none)")),
         phase="generation", max_tokens=4000,
     )
     if isinstance(data, dict) and data.get("refusal"):

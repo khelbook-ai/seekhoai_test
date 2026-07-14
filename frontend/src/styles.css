@@ -211,6 +211,14 @@ table.grid th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-
 .followup-note { background: #f1f8f4; border: 1px solid #bfe0cd; border-radius: 8px; padding: 10px 14px; color: var(--ink); margin: 0 0 18px; }
 .locked-note { background: #f4f3f0; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin: 0; }
 
+/* ---- build-from-file upload (spec 05 §12) ---- */
+.upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.upload-or { color: var(--muted); font-size: 0.95rem; }
+label.btn { cursor: pointer; }
+label.btn input[type="file"] { display: none; }
+.btn.disabled { opacity: 0.5; pointer-events: none; }
+.upload-row .note { margin: 0; }
+
 /* KaTeX: keep long display equations scrollable, never overflow the column */
 .md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 

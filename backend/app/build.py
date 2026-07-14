@@ -27,9 +27,12 @@ from app.store import (
 )
 
 
-def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None) -> dict:
+def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None,
+                seed_material: str | None = None) -> dict:
     """Guardrail + intent + domain + clarification. Persists the course in 'intake'.
-    Returns clarification questions (HITL pause) or advances toward the cost gate."""
+    Returns clarification questions (HITL pause) or advances toward the cost gate.
+    `seed_material` is text extracted from an uploaded PDF/slide deck — when present the
+    Architect builds the curriculum primarily from it (spec 05 §12)."""
     if user_id is None:
         user_id = ensure_user(raw_role)
     elif raw_role:
@@ -55,7 +58,7 @@ def start_build(*, raw_prompt: str, raw_role: str, user_id: str | None = None) -
     # stash intake artefacts on the course for resume
     update_course(course_id, cost_reconciliation=None)
     _stash(course_id, intent=intent, domain=domain, raw_role=raw_role, assumptions=assumptions,
-           personalization=personalization)
+           personalization=personalization, seed_material=seed_material or "")
 
     if questions:
         save_clarifications(course_id, questions)
@@ -96,6 +99,7 @@ def _to_cost_gate(course_id: str, clarifications: list[ClarificationQ],
         intent=st["intent"], domain=st["domain"],
         clarifications=clarifications, assumptions=assumptions,
         personalization=st.get("personalization", {}),
+        seed_material=st.get("seed_material", ""),
     )
     update_course(course_id, currency_mode=ctx.currency_mode)
     try:

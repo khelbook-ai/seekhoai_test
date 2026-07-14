@@ -292,6 +292,20 @@ without the latency of live scouting.
 
 ---
 
+## 12. Build a course from an uploaded file (PDF / slides / doc)
+
+A learner can start a course from **their own material** instead of a prompt (`07 §3`):
+`POST /api/courses/from-file` accepts a **PDF, PPTX, DOCX, or text** upload. The server
+extracts the text (pypdf / python-pptx / python-docx), and passes it into the build as
+**`seed_material`** on `CourseContext`. When present, the **Course Architect builds the
+curriculum primarily from the document** — deriving topics/subtopics from what it actually
+covers, in its order and emphasis — while live-web scouting still runs to **enrich and verify**
+each subtopic. Everything downstream (cost gate, generation, checkers, interactions, learning)
+is identical to a prompt-built course. Files that yield too little text are rejected with a
+clear message. Uploads are size-capped (nginx `client_max_body_size`, plus a server cap).
+
+---
+
 ## 11. Content-reuse library
 
 All generated content is stored and **reused across courses** so we don't pay to re-scout and

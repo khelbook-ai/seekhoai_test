@@ -24,24 +24,33 @@ export default function CourseCreation() {
   const [err, setErr] = useState(null);
   const [restartId, setRestartId] = useState("");
 
+  function route(r) {
+    if (r.status === "refused") {
+      setErr(`Out of scope: ${r.reason}${r.suggested_reframing ? ` — try: ${r.suggested_reframing}` : ""}`);
+    } else if (r.status === "awaiting_clarification") {
+      nav(`/course/${r.course_id}/clarify`, { state: { questions: r.questions } });
+    } else if (r.status === "awaiting_cost") {
+      nav(`/course/${r.course_id}/cost`);
+    } else {
+      nav(`/course/${r.course_id}`);
+    }
+  }
+
   async function create() {
     setErr(null); setBusy(true);
-    try {
-      const r = await api.createCourse(prompt, role);
-      if (r.status === "refused") {
-        setErr(`Out of scope: ${r.reason}${r.suggested_reframing ? ` — try: ${r.suggested_reframing}` : ""}`);
-      } else if (r.status === "awaiting_clarification") {
-        nav(`/course/${r.course_id}/clarify`, { state: { questions: r.questions } });
-      } else if (r.status === "awaiting_cost") {
-        nav(`/course/${r.course_id}/cost`);
-      } else {
-        nav(`/course/${r.course_id}`);
-      }
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
+    try { route(await api.createCourse(prompt, role)); }
+    catch (e) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function uploadFile(e) {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";               // allow re-selecting the same file
+    if (!f) return;
+    setErr(null); setBusy(true);
+    try { route(await api.createCourseFromFile(f, role)); }
+    catch (e2) { setErr(e2.message); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -71,6 +80,15 @@ export default function CourseCreation() {
         </button>
       </div>
 
+      <div className="upload-row">
+        <span className="upload-or">or</span>
+        <label className={"btn secondary" + (busy ? " disabled" : "")}>
+          📎 Build from a PDF or slide deck
+          <input type="file" accept=".pdf,.pptx,.docx,.txt,.md" hidden disabled={busy} onChange={uploadFile} />
+        </label>
+        <span className="note">We read your file and build the course from it — PDF, slides, or docs.</span>
+      </div>
+
       <div className="caps">
         {CAPS.map((c) => (
           <div key={c.t} className="cap">
@@ -86,6 +104,7 @@ export default function CourseCreation() {
         <span className="pill">Escalating hints</span>
         <span className="pill">Code walkthroughs</span>
         <span className="pill">Weakness tracking</span>
+        <span className="pill">Build from PDF / slides</span>
         <span className="pill">No videos needed</span>
       </div>
 

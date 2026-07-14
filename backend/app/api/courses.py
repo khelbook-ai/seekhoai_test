@@ -2,7 +2,10 @@
 approval → (background) generation. The learning runtime is a separate router."""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+import io
+from pathlib import Path
+
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app import build, events
@@ -11,6 +14,34 @@ from app.guardrail import check
 from app.store import get_clarifications, get_course, list_subtopics
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
+
+
+def _extract_material(filename: str, data: bytes) -> str:
+    """Pull text out of an uploaded PDF / slide deck / doc so the Architect can build a
+    course from it (spec 05 §12). Returns "" when nothing usable is found."""
+    ext = Path(filename or "").suffix.lower()
+    try:
+        if ext == ".pdf":
+            import pypdf
+            r = pypdf.PdfReader(io.BytesIO(data))
+            return "\n".join((p.extract_text() or "") for p in r.pages)
+        if ext in (".pptx",):
+            from pptx import Presentation
+            prs = Presentation(io.BytesIO(data))
+            out = []
+            for slide in prs.slides:
+                for shape in slide.shapes:
+                    if shape.has_text_frame:
+                        out.append(shape.text_frame.text)
+            return "\n".join(out)
+        if ext in (".docx",):
+            from docx import Document
+            return "\n".join(p.text for p in Document(io.BytesIO(data)).paragraphs)
+        if ext in (".txt", ".md"):
+            return data.decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    return ""
 
 
 @router.get("")
@@ -57,6 +88,23 @@ def create_course(req: CreateCourse) -> dict:
     else:
         role = ""
     return build.start_build(raw_prompt=g.sanitized_text, raw_role=role, user_id=req.user_id)
+
+
+@router.post("/from-file")
+async def create_from_file(file: UploadFile = File(...), raw_role: str = Form(""),
+                           user_id: str | None = Form(None)) -> dict:
+    """Create a course from an uploaded PDF / slide deck / doc (spec 05 §12). The extracted
+    text seeds the Architect, which builds the curriculum primarily from it."""
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(400, "file too large (max 20MB)")
+    material = _extract_material(file.filename or "", data)
+    if len(material.strip()) < 200:
+        raise HTTPException(400, "couldn't read enough text from that file — try a PDF, PPTX, DOCX, or text file")
+    title = Path(file.filename or "uploaded material").stem.replace("-", " ").replace("_", " ").strip()
+    prompt = f"Build a course from my uploaded material: \"{title}\""
+    return build.start_build(raw_prompt=prompt, raw_role=raw_role or "",
+                             user_id=user_id or None, seed_material=material[:200000])
 
 
 class ClarifyReq(BaseModel):

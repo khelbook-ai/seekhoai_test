@@ -26,6 +26,13 @@ export const api = {
   listCourses: () => get(`/api/courses${uid() ? `?user_id=${uid()}` : ""}`),
   buildEvents: (courseId, after = 0) => get(`/api/courses/${courseId}/events?after=${after}`),
   createCourse: (raw_prompt, raw_role) => post("/api/courses", { raw_prompt, raw_role, user_id: uid() }),
+  createCourseFromFile: (file, raw_role) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("raw_role", raw_role || "");
+    if (uid()) fd.append("user_id", uid());
+    return fetch("/api/courses/from-file", { method: "POST", body: fd }).then(j);
+  },
   clarify: (courseId, answers) => post(`/api/courses/${courseId}/clarify`, { answers }),
   getCourse: (courseId) => get(`/api/courses/${courseId}`),
   costApproval: (courseId, approved) => post(`/api/courses/${courseId}/cost-approval`, { approved }),

@@ -44,6 +44,7 @@ class CourseContext(BaseModel):
     currency_mode: Literal["fundamentals", "latest_research"] = "fundamentals"
     assumptions: list[str] = Field(default_factory=list)
     personalization: dict = Field(default_factory=dict)   # learner profile (spec 03 §13)
+    seed_material: str = ""                                # text from an uploaded PDF/deck (spec 05 §12)
 
 
 # ---- curriculum (spec 03 §4) ------------------------------------------------
