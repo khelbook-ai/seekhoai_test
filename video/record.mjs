@@ -23,9 +23,12 @@ const context = await browser.newContext({
 const page = await context.newPage();
 await page.goto(HTML, { waitUntil: "load" });
 
-// start the tour (click the play cover)
+// hold on the SeekhAI landing / branding screen so it's clearly visible in the video
+const LANDING_MS = 6000;
+await page.waitForTimeout(LANDING_MS);
+// then start the tour (click the play cover)
 await page.click("#cover");
-console.log("recording…", DURATION_MS / 1000, "s");
+console.log("recording…", (LANDING_MS + DURATION_MS) / 1000, "s");
 await page.waitForTimeout(DURATION_MS);
 
 const video = page.video();
