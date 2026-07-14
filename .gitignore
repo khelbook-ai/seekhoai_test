@@ -22,3 +22,6 @@ backend/data/
 
 # local demo recordings + playwright script
 demo/
+
+# video tooling
+video/out/

@@ -1,4 +1,4 @@
-<title>Seekhai — product tour</title>
+<title>SeekhAI — product tour</title>
 
 <style>
   :root{
@@ -54,6 +54,9 @@
   .btn.pulse{animation:pulse 1.6s ease-in-out infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(47,93,80,.45)}50%{box-shadow:0 0 0 10px rgba(47,93,80,0)}}
   .flabel{font-size:12px; color:var(--ink-soft); margin-top:14px; font-weight:600}
+  .or-upload{margin-top:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+  .or-upload .or{color:var(--ink-soft); font-size:12.5px; font-weight:600}
+  .up-pill{border:2px dashed var(--accent-deep); color:var(--accent-deep); font-weight:700; font-size:13px; padding:9px 14px; border-radius:10px; background:#f2f8f5}
 
   .term{font-family:var(--mono); font-size:12px; line-height:1.85; background:#0b1a14; color:#cfe6da; border:1px solid #1c3329; border-radius:12px; padding:15px 17px; height:280px; overflow:hidden}
   .term .ln{opacity:0; transform:translateY(6px)}
@@ -210,7 +213,7 @@
 
 <div class="stage" id="stage">
   <div class="topband">
-    <div class="tb-row"><div class="wordmark">seekhai<span class="dot">.</span></div><div class="counter" id="counter">01 / 11</div></div>
+    <div class="tb-row"><div class="wordmark">SeekhAI<span class="dot">.</span></div><div class="counter" id="counter">01 / 11</div></div>
     <div class="cap-eyebrow" id="capEye">Ask in plain language</div>
     <div class="cap-title" id="capTitle"></div>
   </div>
@@ -229,7 +232,7 @@
   </div>
   <div class="cover" id="cover">
     <div class="play">▶</div>
-    <div class="t1">Seekhai</div>
+    <div class="t1">SeekhAI</div>
     <div class="t2">A highly interactive, personalized, prompt-based educational course builder.</div>
   </div>
 </div>
@@ -243,28 +246,29 @@
 
   var scenes = [
     { label:"one prompt", eye:"Ask in plain language", cap:"One prompt, and your role in your own words — anyone from an undergrad to an AI engineer.", html:promptScene },
+    { label:"or your own files", eye:"Or start from your own material", cap:"Prefer your own material? Upload a PDF or slide deck instead — SeekhAI builds the whole course from it.", html:pdfUpload },
     { label:"build log", eye:"Watch it build, live", cap:"It researches the web and builds the whole course for you — sources, questions and checks — streamed live.", html:buildLog },
-    { label:"curriculum", eye:"A real, detailed curriculum", cap:"Every topic and subtopic, graded DL1–DL3 for adaptive difficulty and sourced live from the web.", html:curriculum },
+    { label:"curriculum", eye:"A real, detailed curriculum", cap:"Every topic and subtopic, graded by Difficulty Level 1 to 3 for adaptive difficulty and sourced live from the web.", html:curriculum },
     { label:"order the steps", eye:"Learn by doing — ordering", cap:"Interactions, not lectures — here, drag the orchestration steps into the right sequence.", html:orderScene },
     { label:"the learn screen", eye:"Every question + live metrics", cap:"All your questions on the left, live metrics on the right — jump around in any order.", html:learnScene },
     { label:"drag-drop", eye:"Drag-drop, with Content & Hints", cap:"Drag concepts into place — and every question has an on-demand Content panel and escalating Hints.", html:dragdrop },
     { label:"code walkthrough", eye:"Guided code walkthroughs", cap:"Step through real code — each concept highlights exactly the lines it explains.", html:walkScene },
-    { label:"adaptive routing", eye:"Adaptive, dynamic routing", cap:"Every answer routes what comes next — a miss triggers a targeted follow-up, a streak unlocks DL3.", html:routing },
+    { label:"adaptive routing", eye:"Adaptive, dynamic routing", cap:"Every answer routes what comes next — a miss triggers a targeted follow-up, a streak unlocks Difficulty Level 3.", html:routing },
     { label:"dashboard", eye:"Know where you stand", cap:"Score over time, accuracy by topic, weaknesses nudged up for review, and one-tap feedback.", html:dashboard },
-    { label:"from your files", eye:"Or start from your own material", cap:"Upload your own lecture slides or notes — Seekhai builds the whole course from them.", html:pdfUpload },
-    { label:"seekhai", eye:"Learn anything, by doing", cap:"Seekhai — an agent-built, adaptive way to learn.", html:outro }
+    { label:"SeekhAI", eye:"Learn anything, by doing", cap:"SeekhAI — an agent-built, adaptive way to learn.", html:outro }
   ];
-  var DUR = [14,14,14,21,20,18,17,13,15,10,5]; // ~161s — unhurried; content appears after the caption streams
+  var DUR = [15,11,14,14,21,20,18,17,13,15,5]; // ~163s — unhurried; content appears after the caption streams
 
   // ---- renderers ---------------------------------------------------------
   function app(barlabel, inner){ return '<div class="mock"><div class="app"><div class="bar"><i></i><i></i><i></i><span>'+barlabel+'</span></div><div class="body">'+inner+'</div></div></div>'; }
   function promptScene(){
-    return app("seekhai · new course",
+    return app("SeekhAI · new course",
       '<h2 class="big" style="font-size:22px">What do you want to learn?</h2>'+
       '<div class="field"><span id="typePrompt"></span><span class="caret"></span></div>'+
       '<div class="flabel">What’s your role? <span style="font-weight:400;color:var(--ink-soft)">— type anything</span></div>'+
       '<div class="field mini"><span id="typeRole"></span><span class="caret"></span></div>'+
-      '<div class="btn pulse">Build my course</div>');
+      '<div class="btn pulse">Build my course</div>'+
+      '<div class="or-upload"><span class="or">— or —</span><span class="up-pill">📎 Upload a PDF or slide deck instead</span></div>');
   }
   function buildLog(){
     var lines=[['researching','k-web','searching the web for authoritative sources…'],
@@ -277,18 +281,18 @@
       ['building','k-gen','assembling a guided code walkthrough'],
       ['done','k-done','✅ your course is ready · 41 interactions']];
     var rows=lines.map(function(l,i){return '<div class="ln" style="animation-delay:'+(i*1.15)+'s"><span class="ph2">'+l[0]+'</span><span class="'+l[1]+'">'+l[2]+'</span></div>';}).join("");
-    return app("seekhai · building",'<div class="term" id="term">'+rows+'</div><div class="pbar"><span></span></div>');
+    return app("SeekhAI · building",'<div class="term" id="term">'+rows+'</div><div class="pbar"><span></span></div>');
   }
   function curriculum(){
     function sub(s){return '<div class="subrow"><span class="d"></span>'+s+'</div>';}
-    return app("seekhai · curriculum",
+    return app("SeekhAI · curriculum",
       '<h2 class="big" style="font-size:20px;margin-bottom:2px">'+C.title.split(":")[0]+'</h2>'+
       '<p class="lead" style="margin-bottom:2px">Built from the live web · 3 topics · 7 subtopics</p>'+
-      '<div class="tcard"><div class="th"><span class="dl dl2">DL2</span><b>Agent Architectures &amp; Communication Primitives</b></div>'+
+      '<div class="tcard"><div class="th"><span class="dl dl2">Level 2</span><b>Agent Architectures &amp; Communication Primitives</b></div>'+
         '<div class="subs">'+sub("Multi-agent topology patterns")+sub("Inter-agent communication protocols")+'</div></div>'+
-      '<div class="tcard"><div class="th"><span class="dl dl3">DL3</span><b>Orchestration Strategies &amp; Coordination</b></div>'+
+      '<div class="tcard"><div class="th"><span class="dl dl3">Level 3</span><b>Orchestration Strategies &amp; Coordination</b></div>'+
         '<div class="subs">'+sub("Task decomposition &amp; dynamic routing")+sub("Coordination &amp; consensus among agents")+sub("State management &amp; context sharing")+'</div></div>'+
-      '<div class="tcard"><div class="th"><span class="dl dl3">DL3</span><b>Reliability, Evaluation &amp; Production</b></div>'+
+      '<div class="tcard"><div class="th"><span class="dl dl3">Level 3</span><b>Reliability, Evaluation &amp; Production</b></div>'+
         '<div class="subs">'+sub("Failure modes &amp; error propagation")+sub("Observability &amp; evaluation of swarms")+'</div></div>'+
       '<div class="chips"><span class="chip-stat"><b>33</b> MCQ</span><span class="chip-stat"><b>5</b> code walkthroughs</span><span class="chip-stat"><b>2</b> drag-drop</span><span class="chip-stat"><b>1</b> fill-blanks</span><span class="chip-stat"><b>9</b> sources</span></div>');
   }
@@ -300,8 +304,8 @@
     {t:"Agents execute with tool calls", c:3}];
   function orderScene(){
     var rows=ORDER.map(function(o,i){return '<div class="oitem" data-correct="'+o.c+'"><span class="n">'+(i+1)+'</span>'+o.t+'</div>';}).join("");
-    return app("seekhai · order the steps",
-      '<div class="qh" style="margin-top:0"><b>Order the multi-agent request lifecycle</b><span class="badge" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">DL2</span></div>'+
+    return app("SeekhAI · order the steps",
+      '<div class="qh" style="margin-top:0"><b>Order the multi-agent request lifecycle</b><span class="badge" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">Level 2</span></div>'+
       '<p class="lead" style="margin:6px 0 2px">Drag the steps into the correct sequence.</p>'+
       '<div class="order-list" id="orderList">'+rows+'</div>');
   }
@@ -309,22 +313,22 @@
     function ri(q,type,dl,st,idx){var tk=st==='ok'?'✓':st==='bad'?'✗':st==='here'?'▸':'○';var cl=st==='ok'?'ok':st==='bad'?'bad':'none';
       return '<div class="qitem'+(st==='here'?' here':'')+'"'+(idx!=null?' data-ri="'+idx+'"':'')+'><span class="t '+cl+'">'+tk+'</span> '+q+' · '+type+'<span class="tag">'+dl+'</span></div>';}
     var rail='<div class="rail"><div class="rail-score">Score <b>34</b></div>'+
-      '<div class="sub">Multi-agent topologies</div>'+ri('Q1','MCQ','DL2','ok')+ri('Q2','ORDER','DL2','ok')+ri('Q3','MCQ','DL2','bad')+
-      '<div class="sub">Communication protocols</div>'+ri('Q4','DRAG-DROP','DL2','here',0)+ri('Q5','CODE','DL3','none',1)+ri('Q6','MCQ','DL3','none',2)+
-      '<div class="sub">Coordination</div>'+ri('Q7','MCQ','DL3','none',3)+ri('Q8','ORDER','DL3','none',4)+'</div>';
+      '<div class="sub">Multi-agent topologies</div>'+ri('Q1','MCQ','Level 2','ok')+ri('Q2','ORDER','Level 2','ok')+ri('Q3','MCQ','Level 2','bad')+
+      '<div class="sub">Communication protocols</div>'+ri('Q4','DRAG-DROP','Level 2','here',0)+ri('Q5','CODE','Level 3','none',1)+ri('Q6','MCQ','Level 3','none',2)+
+      '<div class="sub">Coordination</div>'+ri('Q7','MCQ','Level 3','none',3)+ri('Q8','ORDER','Level 3','none',4)+'</div>';
     var body='<div class="qbody">'+
       '<div class="metrics">'+mt('34','Score','learnScore')+mt('27%','Progress','learnPct')+mt('78%','Accuracy','learnAcc')+mt('🔥 2','Streak','learnStreak')+'</div>'+
       '<div class="learn-head"><span id="learnTopic">Topic: Communication protocols · 3 topics</span><span class="mono" id="learnProg">Q4 / 15</span></div>'+
       '<div class="prog"><span id="learnBar" style="width:27%"></span></div>'+
-      '<div class="qh"><b id="learnQ">Communication primitives</b><span class="badge" id="learnDL" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">Difficulty: Medium (DL2)</span></div>'+
-      '<p class="lead" id="learnDesc" style="margin-top:6px">Nothing is locked — <b style="color:var(--ink)">jump to any question</b> on the left. Do well and it steps up to DL3; struggle and it eases back.</p>'+
+      '<div class="qh"><b id="learnQ">Communication primitives</b><span class="badge" id="learnDL" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">Difficulty: Medium (Level 2)</span></div>'+
+      '<p class="lead" id="learnDesc" style="margin-top:6px">Nothing is locked — <b style="color:var(--ink)">jump to any question</b> on the left. Do well and it steps up to Level 3; struggle and it eases back.</p>'+
       '<div class="actions"><div class="action-btn">Content</div><div class="action-btn">Hint (1 of 3, −1)</div></div></div>';
-    return app("seekhai · learn","<div class='learn'>"+rail+body+"</div>");
+    return app("SeekhAI · learn","<div class='learn'>"+rail+body+"</div>");
   }
   function mt(v,k,id){return '<div class="mtile"><div class="mv" id="'+id+'">'+v+'</div><div class="mk">'+k+'</div></div>';}
   function dragdrop(){
-    return app("seekhai · drag-drop",
-      '<div class="qh" style="margin-top:0"><b>LangGraph communication primitives</b><span class="badge">DRAG-DROP · DL2</span></div>'+
+    return app("SeekhAI · drag-drop",
+      '<div class="qh" style="margin-top:0"><b>LangGraph communication primitives</b><span class="badge">DRAG-DROP · Level 2</span></div>'+
       '<p class="lead" style="margin:6px 0 0">Drag each concept into the right box.</p>'+
       '<div class="dd-boxes" id="ddBoxes">'+box('Shared Scratchpad','Blackboard state')+box('Message Schema','Typed message contract')+box('Structured Handoff','Explicit agent→agent pass')+box('Tool-call Delegation','Delegate via a tool call')+'</div>'+
       '<div class="tray" id="ddTray">'+chip('Blackboard state')+chip('Typed message contract')+chip('Explicit agent→agent pass')+chip('Delegate via a tool call')+'</div>'+
@@ -349,7 +353,7 @@
       return t;}).join("\n");
     var steps=WSTEPS.map(function(s,i){return '<div class="wt-step'+(i===0?' on':'')+'" data-i="'+i+'"><b>'+(i+1)+'. '+s.t+'</b><small>'+s.s+'</small></div>';}).join("");
     var b0=WSTEPS[0].r;
-    return app("seekhai · code walkthrough",
+    return app("SeekhAI · code walkthrough",
       '<div class="wt"><div class="wt-steps">'+steps+'</div>'+
       '<div class="wt-code"><div class="wt-tab">🐍 orchestrator_pipeline.py</div>'+
       '<div class="wt-view"><div class="wt-gutter">'+gutter+'</div>'+
@@ -357,16 +361,16 @@
       '<pre class="wt-pre">'+pre+'</pre></div></div></div>');
   }
   function routing(){
-    return app("seekhai · adaptive routing",
+    return app("SeekhAI · adaptive routing",
       '<div class="route">'+
-        '<div class="rnode">You answer an MCQ<small>Communication primitives · DL2</small></div>'+
+        '<div class="rnode">You answer an MCQ<small>Communication primitives · Level 2</small></div>'+
         '<div class="rsplit">'+
           '<div class="rbranch"><div class="rarrow bad">✗ got it wrong ↓</div><div class="rdest bad"><b>Routed to a follow-up Q&amp;A</b><span class="lead">a targeted follow-up pinpoints the exact gap — instantly, no waiting</span></div></div>'+
-          '<div class="rbranch"><div class="rarrow ok">✓✓ two in a row ↓</div><div class="rdest ok"><b>Routed up to DL3</b><span class="lead">the next topic steps up in difficulty; struggle later and it eases back down</span></div></div>'+
+          '<div class="rbranch"><div class="rarrow ok">✓✓ two in a row ↓</div><div class="rdest ok"><b>Routed up to Level 3</b><span class="lead">the next topic steps up in difficulty; struggle later and it eases back down</span></div></div>'+
         '</div></div>');
   }
   function dashboard(){
-    return app("seekhai · dashboard",
+    return app("SeekhAI · dashboard",
       '<div class="statrow"><div class="stat"><div class="v">34</div><div class="k">Score</div></div><div class="stat"><div class="v">78%</div><div class="k">Accuracy</div></div><div class="stat"><div class="v">15</div><div class="k">Answered</div></div><div class="stat"><div class="v">🔥 2</div><div class="k">Best streak</div></div></div>'+
       '<div class="dash">'+
         '<div class="card"><h4>Score over the session</h4>'+
@@ -376,18 +380,18 @@
           '<div class="weak"><span>Coordination &amp; consensus</span><b>3 misses</b></div>'+
           '<div class="weak"><span>Failure propagation</span><b>2 misses</b></div>'+
           '<div class="weak good"><span>Topology patterns</span><b>strong</b></div>'+
-          '<p class="lead" style="margin-top:8px;font-size:12px">Adaptive tracking nudged the weak topics to <b style="color:var(--bad)">DL3</b> for review.</p>'+
+          '<p class="lead" style="margin-top:8px;font-size:12px">Adaptive tracking nudged the weak topics to <b style="color:var(--bad)">Level 3</b> for review.</p>'+
           '<h4 style="margin-top:12px">Feedback</h4><div class="fb"><div class="thumb up">👍</div><div class="thumb">👎</div><span class="lead" style="font-size:12px">one-tap on any question</span></div></div>'+
       '</div>');
   }
   function acc(n,w){return '<div class="accrow"><span style="width:104px">'+n+'</span><span class="meter"><span style="--w:'+w+'%"></span></span><b style="font-variant-numeric:tabular-nums">'+w+'%</b></div>';}
   function pdfUpload(){
-    return app("seekhai · new course",
+    return app("SeekhAI · new course",
       '<h2 class="big" style="font-size:22px">Start from your own material</h2>'+
       '<div class="drop reveal"><div class="file">📄 STAN301 — Multi-Agent Orchestration (lecture notes).pdf · 3.2 MB</div><div class="shimmer"></div><div class="parse">reading your lecture notes → building your course…</div></div>'+
       '<p class="lead" style="margin-top:11px">Lecture slides, notes &amp; docs — the same agent pipeline, seeded from your file.</p>');
   }
-  function outro(){ return '<div class="outro"><div class="logo">seekhai<span class="dot">.</span></div><div class="tag">Learn anything — by doing.</div></div>'; }
+  function outro(){ return '<div class="outro"><div class="logo">SeekhAI<span class="dot">.</span></div><div class="tag">Learn anything — by doing.</div></div>'; }
 
   // ---- engine ------------------------------------------------------------
   var stageEl=document.getElementById("stage"), screen=document.getElementById("screen"),
@@ -403,7 +407,7 @@
     var i=0;(function tick(){el.textContent=text.slice(0,i); if(i++<=text.length) setTimeout(tick,1000/cps); else done&&done();})(); }
   function cycleRoles(el){ if(!el) return; var roles=["ML engineer","Undergrad CS student","AI Engineer","PM at a startup"]; var ri=0;
     if(reduce){el.textContent=roles[0]; return;}
-    (function typeR(){var w=roles[ri],i=0;(function t(){el.textContent=w.slice(0,i); if(i++<=w.length) setTimeout(t,52); else setTimeout(eraseR,1100);})();
+    (function typeR(){var w=roles[ri],i=0;(function t(){el.textContent=w.slice(0,i); if(i++<=w.length) setTimeout(t,72); else setTimeout(eraseR,1200);})();
       function eraseR(){var s=el.textContent,j=s.length;(function e(){el.textContent=s.slice(0,j); if(j-->0) setTimeout(e,26); else {ri=(ri+1)%roles.length; setTimeout(typeR,220);}})();}})();
   }
   // stream the caption text like a typewriter, then call done()
@@ -436,7 +440,7 @@
   }
   function startAnims(i, div){
     var s=scenes[i];
-    if(s.html===promptScene){ typeInto(div.querySelector("#typePrompt"),C.prompt,24, function(){ cycleRoles(div.querySelector("#typeRole")); }); }
+    if(s.html===promptScene){ typeInto(div.querySelector("#typePrompt"),C.prompt,10, function(){ cycleRoles(div.querySelector("#typeRole")); }); }
     if(s.html===buildLog){ var t=div.querySelector("#term"); if(t){ void t.offsetWidth; t.classList.add("run"); } }
     if(s.html===orderScene) runOrder(div);
     if(s.html===learnScene) runLearn(div);
@@ -468,9 +472,9 @@
   function runLearn(div){
     if(reduce) return;
     var steps=[
-      {ri:2, topic:'Communication protocols · 3 topics', prog:'Q6 / 15', pct:40, dl:'Hard (DL3)', hard:true, q:'When does a shared scratchpad beat message passing?', desc:'You skipped ahead to a later question — freely.', acc:'80%', st:'🔥 3', sc:'40'},
-      {ri:3, topic:'Coordination · 3 topics', prog:'Q7 / 15', pct:53, dl:'Hard (DL3)', hard:true, q:'Which agent owns final consensus?', desc:'Two correct in a row — difficulty stepped up to DL3.', acc:'82%', st:'🔥 4', sc:'48'},
-      {ri:0, topic:'Communication protocols · 3 topics', prog:'Q4 / 15', pct:53, dl:'Medium (DL2)', hard:false, q:'Communication primitives', desc:'Jumped back to revisit an earlier question.', acc:'82%', st:'🔥 4', sc:'48'}
+      {ri:2, topic:'Communication protocols · 3 topics', prog:'Q6 / 15', pct:40, dl:'Hard (Level 3)', hard:true, q:'When does a shared scratchpad beat message passing?', desc:'You skipped ahead to a later question — freely.', acc:'80%', st:'🔥 3', sc:'40'},
+      {ri:3, topic:'Coordination · 3 topics', prog:'Q7 / 15', pct:53, dl:'Hard (Level 3)', hard:true, q:'Which agent owns final consensus?', desc:'Two correct in a row — difficulty stepped up to Level 3.', acc:'82%', st:'🔥 4', sc:'48'},
+      {ri:0, topic:'Communication protocols · 3 topics', prog:'Q4 / 15', pct:53, dl:'Medium (Level 2)', hard:false, q:'Communication primitives', desc:'Jumped back to revisit an earlier question.', acc:'82%', st:'🔥 4', sc:'48'}
     ];
     var items=[].slice.call(div.querySelectorAll('.qitem')); var g=function(id){return div.querySelector(id);};
     steps.forEach(function(s,k){ setTimeout(function(){
