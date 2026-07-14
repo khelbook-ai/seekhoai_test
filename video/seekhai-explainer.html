@@ -99,7 +99,14 @@
   /* learn rail (non-linear) */
   .learn{display:grid; grid-template-columns:210px 1fr; gap:16px}
   .rail{background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px}
+  .rail-score{font-size:12.5px; color:var(--ink-soft); padding:2px 6px 9px; border-bottom:1px solid var(--line); margin-bottom:4px}
+  .rail-score b{color:var(--ink); font-size:1.05rem}
   .rail .sub{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin:8px 4px 4px}
+  .learn-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12px; color:var(--ink-soft)}
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+  .prog{height:8px; background:var(--paper2); border-radius:99px; overflow:hidden; margin-top:8px}
+  .prog>span{display:block; height:100%; background:var(--accent-deep); transition:width .7s ease}
+  .qitem.here{transition:background .3s}
   .qitem{display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:7px; font-size:12.5px; color:var(--ink)}
   .qitem .t{width:16px; text-align:center; font-weight:800}
   .qitem.here{background:#e3ede9; font-weight:700}
@@ -203,7 +210,7 @@
   <div class="cover" id="cover">
     <div class="play">▶</div>
     <div class="t1">Seekhai — a 2-minute tour</div>
-    <div class="t2">Multi-Agent Orchestration · built for “Mohit”</div>
+    <div class="t2">A live course · Multi-Agent Orchestration</div>
   </div>
 </div>
 
@@ -219,17 +226,17 @@
   };
 
   var scenes = [
-    { label:"sign in", eye:"Get started", cap:"Sign in with just a name — Mohit. Your history personalizes every future course.",
+    { label:"sign in", eye:"Get started", cap:"Sign in with just a name — that's the whole setup. Your history quietly personalizes every future course.",
       html: signup },
     { label:"one prompt", eye:"Ask in plain language", cap:"One prompt. Seekhai’s agents research the live web and design a whole course.",
       html: promptScene },
     { label:"build log", eye:"Watch it build, live", cap:"A multi-agent pipeline — web scouting → generation → independent verification — streamed as a live build log.",
       html: buildLog, run:true },
-    { label:"curriculum", eye:"A calibrated curriculum", cap:"Topics graded DL1–DL3 for adaptive difficulty, with build cost & time-to-finish shown up front.",
+    { label:"curriculum", eye:"A real, calibrated curriculum", cap:"Every topic graded DL1–DL3 for adaptive difficulty; every subtopic sourced live from the web.",
       html: curriculum },
     { label:"illustrations", eye:"Auto-sourced illustrations", cap:"Diagrams sourced or generated per concept — click any illustration to enlarge.",
       html: illustration },
-    { label:"non-linear", eye:"Learn non-linearly", cap:"Jump between questions in any order. Green = right, red = wrong — and the difficulty adapts as you go.",
+    { label:"the learn screen", eye:"Every question, one screen", cap:"All your questions on the left, live metrics on the right — jump around in any order, and the difficulty adapts as you go.",
       html: learnRail },
     { label:"interactions", eye:"Not just multiple-choice", cap:"Drag-drop diagrams, step-ordering, fill-in-the-blanks and guided code walkthroughs.",
       html: dragdrop },
@@ -241,7 +248,7 @@
       html: outro }
   ];
   // durations (seconds) → ~118s total
-  var DUR = [9,12,17,14,12,15,17,14,8,4];
+  var DUR = [8,11,16,13,11,19,16,13,8,4];
 
   // ---- scene renderers ---------------------------------------------------
   function signup(){
@@ -275,12 +282,13 @@
     return app("seekhai · building",'<div class="term" id="term">'+rows+'</div><div class="pbar"><span></span></div>');
   }
   function curriculum(){
-    return app("seekhai · cost & curriculum",
-      '<h2 class="big" style="font-size:24px">'+C.title.split(":")[0]+'</h2>'+
-      '<div class="topic"><span class="dl dl2">DL2</span><div><b>Agent Architectures &amp; Communication Primitives</b><br><span class="lead">topologies · inter-agent protocols</span></div></div>'+
-      '<div class="topic"><span class="dl dl3">DL3</span><div><b>Orchestration Strategies &amp; Coordination</b><br><span class="lead">routing · consensus · shared state</span></div></div>'+
-      '<div class="topic"><span class="dl dl3">DL3</span><div><b>Reliability, Evaluation &amp; Production</b><br><span class="lead">failure modes · observability</span></div></div>'+
-      '<div class="chips"><span class="chip-stat">Est. build <b>$0.58</b></span><span class="chip-stat">Finish in <b>~2 hrs</b></span><span class="chip-stat"><b>41</b> interactions</span></div>');
+    return app("seekhai · curriculum",
+      '<h2 class="big" style="font-size:22px">'+C.title.split(":")[0]+'</h2>'+
+      '<p class="lead" style="margin:0 0 4px">Built from the live web · 3 topics · 7 subtopics</p>'+
+      '<div class="topic"><span class="dl dl2">DL2</span><div><b>Agent Architectures &amp; Communication Primitives</b><br><span class="lead">topology patterns · inter-agent protocols</span></div></div>'+
+      '<div class="topic"><span class="dl dl3">DL3</span><div><b>Orchestration Strategies &amp; Coordination</b><br><span class="lead">task routing · consensus · shared state</span></div></div>'+
+      '<div class="topic"><span class="dl dl3">DL3</span><div><b>Reliability, Evaluation &amp; Production</b><br><span class="lead">failure modes · observability of agent swarms</span></div></div>'+
+      '<div class="chips"><span class="chip-stat"><b>33</b> MCQ</span><span class="chip-stat"><b>5</b> code walkthroughs</span><span class="chip-stat"><b>2</b> drag-drop</span><span class="chip-stat"><b>1</b> fill-blanks</span><span class="chip-stat"><b>9</b> sources</span></div>');
   }
   function illustration(){
     return app("seekhai · illustrations",
@@ -292,18 +300,32 @@
         '<div class="node">Critic<small>verifies output</small></div>'+
       '</div><p class="lead" style="margin-top:12px">Figure · a supervisor topology for multi-agent orchestration</p></div>');
   }
+  function railItem(q,type,dl,state,ri){
+    var tick=state==='ok'?'✓':state==='bad'?'✗':state==='here'?'▸':'○';
+    var cls=state==='ok'?'ok':state==='bad'?'bad':'none';
+    return '<div class="qitem'+(state==='here'?' here':'')+'"'+(ri!=null?' data-ri="'+ri+'"':'')+'>'+
+      '<span class="t '+cls+'">'+tick+'</span> '+q+' · '+type+'<span class="tag">'+dl+'</span></div>';
+  }
   function learnRail(){
-    function q(t,cls,tag,here){return '<div class="qitem'+(here?' here':'')+'"><span class="t '+cls+'">'+t+'</span> '+tag+'<span class="tag">DL'+(cls==='none'?'3':(cls==='ok'?'2':'2'))+'</span></div>';}
-    var rail='<div class="rail"><div class="sub">Topologies</div>'+
-      q('✓','ok','Q1 · MCQ')+q('✓','ok','Q2 · ORDER')+q('✗','bad','Q3 · MCQ')+
-      '<div class="sub">Communication</div>'+
-      q('▸','none','Q4 · DRAG-DROP',true)+q('○','none','Q5 · CODE')+q('○','none','Q6 · MCQ')+'</div>';
-    var body='<div class="qbody"><div class="qh"><b>Communication primitives</b><span class="badge" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">Difficulty: Medium (DL2)</span></div>'+
-      '<p class="lead">Map each inter-agent concept to the mechanism it belongs to.</p>'+
-      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
-        '<span class="placed-chip" style="opacity:1">Shared Scratchpad</span><span class="placed-chip" style="opacity:1">Message Schema</span>'+
-        '<span class="placed-chip" style="opacity:1">Structured Handoff</span><span class="placed-chip" style="opacity:1">Tool-call Delegation</span></div>'+
-      '<p class="lead" style="margin-top:14px;font-size:13px">Adaptive: after 2 correct in a row, the next topic steps up to <b style="color:var(--bad)">DL3</b>.</p></div>';
+    var rail='<div class="rail">'+
+      '<div class="rail-score">Score <b>34</b></div>'+
+      '<div class="sub">Multi-agent topologies</div>'+
+        railItem('Q1','MCQ','DL2','ok')+railItem('Q2','ORDER','DL2','ok')+railItem('Q3','MCQ','DL2','bad')+
+      '<div class="sub">Communication protocols</div>'+
+        railItem('Q4','DRAG-DROP','DL2','here',0)+railItem('Q5','CODE','DL3','none',1)+railItem('Q6','MCQ','DL3','none',2)+
+      '<div class="sub">Coordination</div>'+
+        railItem('Q7','MCQ','DL3','none',3)+railItem('Q8','ORDER','DL3','none',4)+
+      '</div>';
+    var body='<div class="qbody">'+
+      '<div class="learn-head"><span id="learnTopic">Topic: Communication protocols · 3 topics</span>'+
+        '<span class="mono" id="learnProg">27% · 4/15 done · Q4</span></div>'+
+      '<div class="prog"><span id="learnBar" style="width:27%"></span></div>'+
+      '<div class="qh" style="margin-top:14px"><b id="learnQ">Communication primitives</b>'+
+        '<span class="badge" id="learnDL" style="color:var(--warn);border-color:#e6d4a0;background:#fbf4e3">Difficulty: Medium (DL2)</span></div>'+
+      '<p class="lead" id="learnDesc">Map each inter-agent concept to the mechanism it belongs to.</p>'+
+      '<p class="lead" id="learnNote" style="margin-top:16px;font-size:13px">Nothing is locked — <b style="color:var(--ink)">jump to any question</b> on the left. '+
+        'Do well and it steps up to <b style="color:var(--bad)">DL3</b>; struggle and it eases back.</p>'+
+      '</div>';
     return app("seekhai · learn","<div class='learn'>"+rail+body+"</div>");
   }
   function dragdrop(){
@@ -379,7 +401,38 @@
     if(i===0) typeInto(div.querySelector("#typeName"),"Mohit",9);
     if(i===1) typeInto(div.querySelector("#typePrompt"),C.prompt,26);
     if(i===2){ var t=div.querySelector("#term"); if(t){ void t.offsetWidth; t.classList.add("run"); } }
+    if(i===5) runLearn(div);
     if(i===6) runDragDrop(div);
+  }
+
+  function runLearn(div){
+    if(reduce) return;
+    var steps=[
+      {ri:2, topic:'Communication protocols · 3 topics', prog:'40% · 6/15 done · Q6', dl:'Hard (DL3)', hard:true,
+       q:'When does a shared scratchpad beat message passing?', desc:'A concept-check — you skipped ahead to it.'},
+      {ri:3, topic:'Coordination · 3 topics', prog:'53% · 8/15 done · Q7', dl:'Hard (DL3)', hard:true,
+       q:'Which agent owns final consensus?', desc:'Two correct in a row — difficulty stepped up to DL3.'},
+      {ri:0, topic:'Communication protocols · 3 topics', prog:'53% · 8/15 done · Q4', dl:'Medium (DL2)', hard:false,
+       q:'Communication primitives', desc:'Jumped back to revisit an earlier question — freely.'}
+    ];
+    var items=[].slice.call(div.querySelectorAll('.qitem'));
+    var topic=div.querySelector('#learnTopic'), prog=div.querySelector('#learnProg'), bar=div.querySelector('#learnBar'),
+        dl=div.querySelector('#learnDL'), q=div.querySelector('#learnQ'), desc=div.querySelector('#learnDesc');
+    steps.forEach(function(s,k){
+      setTimeout(function(){
+        items.forEach(function(it){ it.classList.remove('here'); var t=it.querySelector('.t'); if(t&&t.textContent==='▸') t.textContent='○'; });
+        var tgt=div.querySelector('.qitem[data-ri="'+s.ri+'"]');
+        if(tgt){ tgt.classList.add('here'); var tt=tgt.querySelector('.t'); if(tt&&tt.classList.contains('none')) tt.textContent='▸'; }
+        if(topic) topic.textContent='Topic: '+s.topic;
+        if(prog) prog.textContent=s.prog;
+        if(bar) bar.style.width=(s.prog.split('%')[0])+'%';
+        if(q) q.textContent=s.q; if(desc) desc.textContent=s.desc;
+        if(dl){ dl.textContent='Difficulty: '+s.dl;
+          dl.style.color=s.hard?'var(--bad)':'var(--warn)';
+          dl.style.borderColor=s.hard?'#e6bdb4':'#e6d4a0';
+          dl.style.background=s.hard?'#fbeeeb':'#fbf4e3'; }
+      }, 3400 + k*4200);
+    });
   }
   function pad(n){return (n<10?"0":"")+n;}
 
